@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import re
 import random
 import os
-import base64  # PDF görüntülemek için gerekli
+from streamlit_pdf_viewer import pdf_viewer
 
 # -----------------------------------------------------------------------------
 # 1. DOCX -> HTML -> SORU AYRIŞTIRMA (Önceki Mantık Aynen Korundu)
@@ -255,50 +255,46 @@ if page_selection == "📝 Quiz Çöz":
                         st.caption(f"Ref: {q['ref']}")
 
 # -----------------------------------------------------------------------------
-# SAYFA 2: DERS SLAYTLARI
+# SAYFA 2: DERS SLAYTLARI (GÜNCELLENDİ)
 # -----------------------------------------------------------------------------
 elif page_selection == "📊 Ders Slaytları":
     st.subheader("📊 Ders Materyalleri ve Slaytlar")
     
-    # Slides klasörü var mı kontrol et
     if not os.path.exists(SLIDES_DIR):
-        os.makedirs(SLIDES_DIR) # Yoksa oluştur
+        os.makedirs(SLIDES_DIR)
         st.warning(f"⚠️ '{SLIDES_DIR}' klasörü oluşturuldu. Lütfen içine PDF dosyalarınızı atın.")
     
-    # PDF Dosyalarını Listele
     pdf_files = [f for f in os.listdir(SLIDES_DIR) if f.lower().endswith('.pdf')]
-    pdf_files.sort() # Sıralı gelsin
+    pdf_files.sort()
     
     if not pdf_files:
-        st.info(f"📂 'slides' klasöründe henüz PDF dosyası yok. Dosyaları yükledikten sonra sayfayı yenileyin.")
+        st.info(f"📂 'slides' klasöründe henüz PDF dosyası yok.")
     else:
-        # Dosya isimlerini temizle (Örn: "Chapter03_Sunum.pdf" -> "Chapter03")
-        # Kullanıcıya gösterilecek isimler ve gerçek dosya adları için sözlük
+        # İsim Haritası
         slide_map = {}
         display_names = []
         
         for f in pdf_files:
-            # İsmi '_' karakterine göre böl ve ilk kısmı al
             clean_name = f.split('_')[0] 
-            # Eğer '_' yoksa dosya adını olduğu gibi al (uzantısız)
             if clean_name == f:
                 clean_name = os.path.splitext(f)[0]
-            
-            # Aynı chapter ismi varsa karışmasın diye orijinal ismi de parantezde tutabiliriz
-            # Ama talep "sadece başını al" olduğu için:
-            display_name = f"{clean_name} ({f})" # Kullanıcı tam adı da görsün karışıklık olmasın
+            display_name = f"{clean_name} ({f})"
             slide_map[display_name] = f
             display_names.append(display_name)
             
-        # Kenar Çubuğunda Seçim
+        # KENAR ÇUBUĞU (SELECTBOX İLE)
         with st.sidebar:
             st.markdown("### 📑 Slayt Seç")
-            selected_display_name = st.radio("Mevcut Slaytlar:", display_names)
+            # Değişiklik: Radio yerine Selectbox
+            selected_display_name = st.selectbox("Görüntülenecek Slayt:", display_names)
         
-        # Seçilen PDF'i Göster
+        # PDF GÖSTERİMİ (YENİ KÜTÜPHANE İLE)
         if selected_display_name:
             filename = slide_map[selected_display_name]
             full_path = os.path.join(SLIDES_DIR, filename)
             
             st.write(f"**Görüntülenen:** `{filename}`")
-            display_pdf(full_path)
+            
+            # iframe yerine pdf_viewer kullanıyoruz
+            # width belirtmezseniz sayfa genişliğine yayılır
+            pdf_viewer(full_path, height=800)
