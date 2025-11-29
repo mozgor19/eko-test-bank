@@ -1,3 +1,7 @@
 streamlit
 mammoth
 beautifulsoup4
+re
+random
+os
+base64 
