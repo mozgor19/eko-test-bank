@@ -121,7 +121,7 @@ def parse_docx_with_images(file_obj, chapter_name):
 # -----------------------------------------------------------------------------
 
 st.set_page_config(page_title="ekoTestBank (Resimli)", layout="wide")
-st.title("🎓 ekoTestBank - Görsel Destekli Quiz")
+st.title("🎓 ekoTestBank")
 st.markdown("---")
 
 # Session State
@@ -225,3 +225,4 @@ else:
                 
                 if q.get('ref'):
                     st.caption(f"Ref: {q['ref']}")
+
