@@ -120,6 +120,23 @@ with st.sidebar:
             st.session_state.data_loaded = False
             st.session_state.all_questions = []
             st.rerun()
+        
+    st.write("---")
+    with st.expander("⚠️ Geliştirici Ayarları"):
+        if st.button("Veritabanını Sıfırla (Eski DB'yi Sil)", type="primary"):
+            import os
+            db_path = os.path.join("data", "user_data.db")
+            if os.path.exists(db_path):
+                try:
+                    os.remove(db_path)
+                    st.toast("Eski veritabanı silindi!", icon="🗑️")
+                    st.info("Sayfa yenileniyor, yeni veritabanı oluşturulacak...")
+                    time.sleep(2)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Silinemedi: {e}")
+            else:
+                st.warning("Zaten veritabanı dosyası yok.")
 
 # -----------------------------------------------------------------------------
 # SAYFA: QUIZ ÇÖZ & HATALARIM
@@ -296,3 +313,4 @@ function topFunction() {
 }
 </script>
 """, unsafe_allow_html=True)
+
