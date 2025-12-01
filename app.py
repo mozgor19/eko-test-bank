@@ -44,6 +44,9 @@ if 'username' not in st.session_state:
     st.session_state.username = None 
 if 'role' not in st.session_state:
     st.session_state.role = None 
+# Rate Limiting için Sayaç
+if 'login_attempts' not in st.session_state:
+    st.session_state.login_attempts = 0
 
 # -----------------------------------------------------------------------------
 # FONKSİYONLAR
@@ -91,20 +94,17 @@ with st.sidebar:
     
     # --- GİRİŞ SİSTEMİ ---
     if st.session_state.username:
-        # GİRİŞ YAPILMIŞSA
         st.success(f"👤 **{st.session_state.username}**")
         if st.button("Çıkış Yap", type="secondary", use_container_width=True):
             st.session_state.username = None
             st.session_state.role = None
+            st.session_state.login_attempts = 0 # Sayacı sıfırla
             st.rerun()
             
-        # --- ADMIN PANELİ (Sadece Admin görür) ---
         if st.session_state.role == 'admin':
             st.markdown("---")
             st.warning("🔒 **YÖNETİCİ PANELİ**")
-            
             with st.expander("🛠️ Kullanıcı Yönetimi"):
-                # Kullanıcı Listesi ve Şifre Sıfırlama
                 users_list = get_all_users()
                 if users_list:
                     selected_user_to_reset = st.selectbox("Kullanıcı Seç:", users_list)
@@ -112,20 +112,17 @@ with st.sidebar:
                     if st.button("Şifreyi Güncelle"):
                         if new_pass_admin:
                             admin_reset_password(selected_user_to_reset, new_pass_admin)
-                            st.success(f"{selected_user_to_reset} kullanıcısının şifresi güncellendi!")
+                            st.success(f"{selected_user_to_reset} güncellendi!")
                         else:
-                            st.error("Lütfen şifre girin.")
-                else:
-                    st.info("Kayıtlı kullanıcı yok.")
-
-            with st.expander("⚠️ Geliştirici Ayarları"):
+                            st.error("Şifre girin.")
+            with st.expander("⚠️ DB Ayarları"):
                 if st.button("🧨 Veritabanını Sıfırla"):
                     import os
                     db_path = os.path.join("data", "user_data.db")
                     if os.path.exists(db_path):
                         try:
                             os.remove(db_path)
-                            st.toast("Veritabanı silindi!", icon="🗑️")
+                            st.toast("Silindi! Yeniden başlatılıyor...", icon="🗑️")
                             time.sleep(2)
                             init_db()
                             st.rerun()
@@ -133,7 +130,6 @@ with st.sidebar:
                             st.error(f"Hata: {e}")
 
     else:
-        # GİRİŞ YAPILMAMIŞSA
         st.info("Misafir Modu")
         tab1, tab2 = st.tabs(["Giriş", "Kayıt"])
         
@@ -144,39 +140,48 @@ with st.sidebar:
             col_l1, col_l2 = st.columns([1,1])
             with col_l1:
                 if st.button("Giriş Yap", use_container_width=True):
+                    # RATE LIMITING (Hız Sınırı)
+                    if st.session_state.login_attempts > 3:
+                        st.error("🛑 Çok fazla deneme! 5 saniye bekleyin.")
+                        time.sleep(5) # Ceza süresi
+                    
                     role = login_user(l_user, l_pass)
                     if role:
                         st.session_state.username = l_user
                         st.session_state.role = role
+                        st.session_state.login_attempts = 0 # Başarılıysa sıfırla
                         st.success("Başarılı!")
                         time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("Hatalı bilgi.")
+                        st.session_state.login_attempts += 1 # Hatayı artır
+                        st.error(f"Hatalı bilgi. (Deneme: {st.session_state.login_attempts})")
+            
             with col_l2:
-                # Şifremi Unuttum Butonu
                 if st.button("Şifremi Unuttum", use_container_width=True):
-                    st.info("Lütfen yönetici ile iletişime geçin. Yönetici panelinden şifreniz sıfırlanabilir.")
+                    st.info("Yönetici ile iletişime geçin.")
 
         with tab2:
-            r_user = st.text_input("Kullanıcı Adı Seç", key="r_user")
-            r_pass = st.text_input("Şifre Belirle", type="password", key="r_pass")
+            r_user = st.text_input("Yeni Kullanıcı Adı", key="r_user")
+            r_pass = st.text_input("Yeni Şifre (Min 8 karakter)", type="password", key="r_pass")
             if st.button("Kayıt Ol", use_container_width=True):
                 if r_user and r_pass:
-                    if add_user(r_user, r_pass):
-                        st.success("Kayıt olundu! Giriş sekmesine geçiniz.")
-                    else:
-                        st.error("Bu isim alınmış.")
+                    result = add_user(r_user, r_pass)
+                    if result == "success":
+                        st.success("Kayıt başarılı! Giriş yapabilirsiniz.")
+                    elif result == "password_length_error":
+                        st.error("🔐 Şifre en az 8 karakter olmalıdır!")
+                    elif result == "admin_name_error":
+                        st.error("⛔ 'Admin' ismini kullanamazsınız.")
+                    elif result == "exists_error":
+                        st.error("Bu kullanıcı adı zaten alınmış.")
                 else:
                     st.warning("Bilgileri doldurun.")
 
     st.write("---")
-    
-    # NAVİGASYON
     menu = st.radio("Menü", ["📝 Quiz Çöz", "❌ Hatalarım", "📊 Ders Slaytları"])
     st.markdown("---")
 
-    # İSTATİSTİK
     if st.session_state.data_loaded:
         st.caption(f"📚 Havuz: {len(st.session_state.all_questions)} Soru")
         if st.button("🔄 Verileri Yenile", use_container_width=True):
@@ -185,7 +190,7 @@ with st.sidebar:
             st.rerun()
 
 # -----------------------------------------------------------------------------
-# 1. QUIZ ÇÖZ (Herkese Açık)
+# 1. QUIZ ÇÖZ
 # -----------------------------------------------------------------------------
 if menu == "📝 Quiz Çöz":
     st.header(menu)
@@ -226,13 +231,33 @@ if menu == "📝 Quiz Çöz":
     if not current_qs:
         st.info("👈 Yukarıdan test oluşturun.")
     else:
+        # --- SORUYA GİTME (JUMP) DÜZELTMESİ ---
         with st.sidebar:
             st.markdown("---")
+            st.write("🔎 **Hızlı Git**")
             q_map = {f"{i+1}. {q['id']}": i for i, q in enumerate(current_qs)}
-            jump = st.selectbox("🔎 Soruya Git:", list(q_map.keys()), index=None)
-            if jump:
-                idx = q_map[jump]
-                st.markdown(f"<script>location.href = '#q-{idx}';</script>", unsafe_allow_html=True)
+            
+            # Selectbox
+            jump_selection = st.selectbox("Soru Seç:", list(q_map.keys()), index=None)
+            
+            # Seçim yapıldıysa altına HTML Link (Button Görünümlü) koyuyoruz
+            if jump_selection:
+                idx = q_map[jump_selection]
+                # Bu HTML link, sayfayı yeniden yüklemeden direkt scroll yapar
+                st.markdown(f"""
+                <a href="#q-{idx}" target="_self" style="
+                    display: block;
+                    text-align: center;
+                    background-color: #FF4B4B;
+                    color: white;
+                    padding: 8px;
+                    border-radius: 5px;
+                    text-decoration: none;
+                    font-weight: bold;
+                    margin-top: 5px;">
+                    ➡️ Soruya Git
+                </a>
+                """, unsafe_allow_html=True)
 
         for i, q in enumerate(current_qs):
             st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
@@ -255,7 +280,6 @@ if menu == "📝 Quiz Çöz":
                             log_mistake(st.session_state.username, q['id'], q['chapter'])
                         else:
                             st.warning("⚠️ Giriş yapmadığınız için bu hata kaydedilmedi.")
-                    
                     st.divider()
                     c1, c2, c3 = st.columns(3)
                     if q.get('ref'): c1.caption(f"Ref: {q['ref']}")
@@ -263,7 +287,7 @@ if menu == "📝 Quiz Çöz":
                     if q.get('msc'): c3.caption(f"Tip: {q['msc']}")
 
 # -----------------------------------------------------------------------------
-# 2. HATALARIM (Kısıtlı Erişim)
+# 2. HATALARIM
 # -----------------------------------------------------------------------------
 elif menu == "❌ Hatalarım":
     st.header(menu)
@@ -283,7 +307,7 @@ elif menu == "❌ Hatalarım":
     quiz_pool = [q for q in st.session_state.all_questions if q['id'] in mistake_ids]
 
     if not quiz_pool:
-        st.success(f"🎉 Harika {st.session_state.username}! Hata kaydın yok.")
+        st.success(f"🎉 Harika {st.session_state.username}! Hiç hata kaydın yok.")
     else:
         st.info(f"Toplam {len(quiz_pool)} hatalı soru var.")
         for i, q in enumerate(quiz_pool):
@@ -310,7 +334,7 @@ elif menu == "❌ Hatalarım":
                     st.rerun()
 
 # -----------------------------------------------------------------------------
-# 3. DERS SLAYTLARI (Herkese Açık)
+# 3. DERS SLAYTLARI
 # -----------------------------------------------------------------------------
 elif menu == "📊 Ders Slaytları":
     st.header("📊 Ders Materyalleri")
