@@ -1,6 +1,6 @@
 # 🎓 ekoTestBank
 
-![Tests](https://github.com/KULLANICI_ADI/ekoTestBank/actions/workflows/test_suite.yml/badge.svg)
+![Tests](https://github.com/mozgor19/ekoTestBank/actions/workflows/test_suite.yml/badge.svg)
 ![Python](https://img.shields.org/badge/Python-3.9%2B-blue)
 ![Streamlit](https://img.shields.org/badge/Streamlit-1.31%2B-ff4b4b)
 ![Vibe Coding](https://img.shields.org/badge/Built%20with-Vibe%20Coding-purple?style=flat-square)
@@ -44,7 +44,7 @@ Projeyi yerel ortamınızda çalıştırmak için aşağıdaki adımları izleyi
 Projeyi bilgisayarınıza indirin:
 
 ```bash
-git clone [https://github.com/KULLANICI_ADI/ekoTestBank.git](https://github.com/KULLANICI_ADI/ekoTestBank.git)
+git clone [https://github.com/mozgor19/ekoTestBank.git](https://github.com/KULLANICI_ADI/ekoTestBank.git)
 cd ekoTestBank
 ```
 
