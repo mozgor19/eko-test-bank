@@ -7,13 +7,13 @@ import os
 from streamlit_pdf_viewer import pdf_viewer
 
 # -----------------------------------------------------------------------------
-# 1. DOCX -> HTML -> SORU AYRIŞTIRMA (GELİŞTİRİLMİŞ YAPIŞKAN FİGÜR MANTIĞI)
+# 1. DOCX -> HTML -> SORU AYRIŞTIRMA (GLOBAL HAFIZA MANTIĞI)
 # -----------------------------------------------------------------------------
 def parse_docx_with_images(file_obj, chapter_name):
     """
     DOCX dosyasını HTML'e çevirir. 
-    Resimler bir soru bloğu boyunca (yeni resim gelene kadar) 
-    ilgili sorulara 'yapışkan' olarak eklenir.
+    Resimleri global bir hafızada tutar ve 'Refer to' diyen her soruya
+    en son görülen resmi yapıştırır.
     """
     # 1. Mammoth ile DOCX'i HTML'e çevir
     try:
@@ -33,10 +33,10 @@ def parse_docx_with_images(file_obj, chapter_name):
     question_active = False 
     
     buffer_html = ""        # Şu anki sorunun HTML içeriği
-    preamble_html = ""      # İki soru arasındaki içerik (Resimler buraya düşer)
     
-    # Yapışkan Resim Mantığı İçin:
-    sticky_image_html = ""  # Son görülen resmi hafızada tutar
+    # GLOBAL RESİM HAFIZASI (En önemli değişiklik)
+    # Belge boyunca gördüğümüz son resmi burada tutacağız.
+    global_last_image = ""  
     
     options = {}
     answer = None
@@ -49,7 +49,7 @@ def parse_docx_with_images(file_obj, chapter_name):
     ans_pattern = re.compile(r'(?:ANS|Answer):\s+([A-D])', re.IGNORECASE)
     ref_pattern = re.compile(r'REF:\s+(.*)')
     
-    # Soru metninde bu kelimeler varsa eski resmi tekrar yapıştıracağız
+    # Bu kelimeler geçiyorsa hafızadaki resmi çağıracağız
     figure_keywords = ["refer to", "figure", "table", "graph", "chart", "diagram", "shown in", "following", "aşağıdaki", "göre"]
 
     elements = soup.find_all(['p', 'table']) 
@@ -58,7 +58,15 @@ def parse_docx_with_images(file_obj, chapter_name):
         text = elem.get_text().strip()
         raw_html = str(elem) 
 
-        # --- SENARYO 1: YENİ SORU BAŞLANGICI ---
+        # --- ADIM 1: RESİM GÜNCELLEME ---
+        # Bu element bir resim veya tablo içeriyor mu?
+        # Soru, cevap veya şık fark etmeksizin gördüğümüz an hafızaya alıyoruz.
+        if "<img" in raw_html or "<table" in raw_html:
+            # Cevap şıkkı (a. b. c.) içindeki minik resimleri almamak için basit bir kontrol
+            # Genellikle figürler <p><img...></p> şeklinde gelir ve kısadır.
+            global_last_image = raw_html
+
+        # --- ADIM 2: YENİ SORU BAŞLANGICI ---
         match_q = q_start_pattern.match(text)
         if match_q:
             # Önceki soruyu kaydet
@@ -72,41 +80,35 @@ def parse_docx_with_images(file_obj, chapter_name):
             question_active = True
             current_q = True
             q_num = match_q.group(1)
-            q_text_content = match_q.group(2) # Sadece metin kısmı
+            q_text_content = match_q.group(2) 
             q_id = f"{chapter_name} - Q{q_num}"
             
-            # 1. Preamble (ara boşluk) içinde resim var mı kontrol et
-            # Eğer yeni bir resim geldiyse, sticky_image'ı güncelle
-            if "<img" in preamble_html or "<table" in preamble_html:
-                sticky_image_html = preamble_html
-            
-            # 2. Soru metnini hazırla
+            # Soru metnini hazırla
             q_text_html = f"<p><b>{q_text_content}</b></p>"
             
-            # 3. Resim Ekleme Mantığı (KRİTİK BÖLÜM)
-            # Eğer preamble doluysa (yani hemen bu sorunun üstünde resim varsa) onu kullan.
-            if preamble_html.strip():
-                buffer_html = preamble_html + q_text_html
+            # --- RESİM YAPIŞTIRMA MANTIĞI ---
+            # 1. Bu satırın kendisi zaten resim içeriyor mu? (Nadir ama olur)
+            if "<img" in raw_html:
+                buffer_html = raw_html # Zaten içinde var, direkt al
             else:
-                # Preamble boşsa (yani üstte resim yoksa), soru metnine bak.
-                # "Refer to figure" diyor mu? Ve elimizde eski bir resim (sticky) var mı?
+                # 2. Soru metni "Refer to Figure" gibi bir şey diyor mu?
                 q_text_lower = q_text_content.lower()
                 needs_image = any(kw in q_text_lower for kw in figure_keywords)
                 
-                if needs_image and sticky_image_html:
-                    # Evet, eski resmi bu soruya da yapıştır!
-                    buffer_html = sticky_image_html + q_text_html
+                # Eğer soru resim istiyorsa VE hafızamızda bir resim varsa
+                if needs_image and global_last_image:
+                    # Resmi sorunun tepesine ekle
+                    buffer_html = global_last_image + q_text_html
                 else:
-                    # Hayır, düz metin devam et
+                    # İstemiyorsa düz metin
                     buffer_html = q_text_html
 
-            preamble_html = "" # Kullandık, temizle
             options = {}
             answer = None
             ref = None
             continue
 
-        # --- SENARYO 2: CEVAP SATIRI ---
+        # --- ADIM 3: CEVAP SATIRI ---
         match_ans = ans_pattern.search(text)
         if match_ans:
             answer = match_ans.group(1)
@@ -115,85 +117,72 @@ def parse_docx_with_images(file_obj, chapter_name):
             if match_ref: ref = match_ref.group(1)
             continue
         
-        # --- SENARYO 3: ŞIKLAR ---
+        # --- ADIM 4: ŞIKLAR ---
         if question_active: 
             match_opt = opt_pattern.match(text)
             if match_opt:
                 options[match_opt.group(1).lower()] = match_opt.group(2)
                 continue
 
-        # --- SENARYO 4: İÇERİK (RESİM, TABLO, METİN) ---
+        # --- ADIM 5: SORUNUN DEVAMI ---
         if "REF:" not in text and "ANS:" not in text:
             if question_active: 
-                # Soru hala aktif, cevap gelmedi -> Sorunun parçası
-                buffer_html += raw_html
-            else: 
-                # Cevap geldi, yeni soru başlamadı -> Bu bir PREAMBLE (Resim/Tablo)
-                preamble_html += raw_html
+                # Eğer soru metninin devamıysa (veya şıklardan önce gelen açıklamayla) ekle
+                # Ancak son eklediğimiz şey zaten aynı resimse tekrar ekleme (duplicate önleme)
+                if raw_html != global_last_image:
+                    buffer_html += raw_html
 
     # Döngü bitti, son soruyu ekle
     if current_q and len(options) >= 2 and answer:
         questions.append({
-            'id': q_id, 'chapter': chapter_name, 'body_html': preamble_html + buffer_html,
+            'id': q_id, 'chapter': chapter_name, 'body_html': buffer_html,
             'options': options, 'answer': answer.lower(), 'ref': ref
         })
 
     return questions
 
 # -----------------------------------------------------------------------------
-# 2. PDF GÖSTERME FONKSİYONU
+# 2. PDF GÖSTERME (Aynen Kaldı)
 # -----------------------------------------------------------------------------
 def display_pdf(file_path):
-    # Eğer cloud ortamında dosya yolu sorunu olursa diye try-except
     try:
         pdf_viewer(file_path, height=800)
     except Exception as e:
         st.error(f"PDF görüntülenemedi: {e}")
 
 # -----------------------------------------------------------------------------
-# 3. UYGULAMA ARAYÜZÜ
+# 3. UYGULAMA ARAYÜZÜ (Aynen Kaldı)
 # -----------------------------------------------------------------------------
 
 st.set_page_config(page_title="ekoTestBank Pro", layout="wide")
 
-# Çalışma dizinini sabitle
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SLIDES_DIR = os.path.join(BASE_DIR, "slides") 
 
-# CSS Stilleri
 st.markdown("""
 <style>
-    /* Resimlerin stili */
     img { max-width: 100%; max-height: 350px; width: auto; display: block; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ddd; cursor: pointer; }
-    /* Soru metni */
     .stMarkdown p { font-size: 16px; }
-    /* PDF Viewer çerçevesi */
     iframe { border: 1px solid #eee; border-radius: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🎓 ekoTestBank")
 
-# Session State
 if 'all_questions' not in st.session_state:
     st.session_state.all_questions = []
 if 'current_quiz' not in st.session_state:
     st.session_state.current_quiz = []
 
-# --- SIDEBAR ---
 with st.sidebar:
     st.header("📌 Menü")
     page_selection = st.radio("Git:", ["📝 Quiz Çöz", "📊 Ders Slaytları"])
     st.markdown("---")
 
-# -----------------------------------------------------------------------------
-# SAYFA 1: QUIZ ÇÖZME
-# -----------------------------------------------------------------------------
 if page_selection == "📝 Quiz Çöz":
     with st.sidebar:
         st.subheader("⚙️ Quiz Ayarları")
         
-        # 1. Klasör Tarama
         if st.button("📂 Soru Dosyalarını Tara (.docx)"):
             local_files = [f for f in os.listdir(BASE_DIR) if f.endswith('.docx')]
             if local_files:
@@ -212,7 +201,6 @@ if page_selection == "📝 Quiz Çöz":
             else:
                 st.warning("Klasörde .docx dosyası yok.")
 
-        # 2. Manuel Yükleme
         uploaded_files = st.file_uploader("Veya manuel yükle", type=['docx'], accept_multiple_files=True)
         if uploaded_files:
             all_loaded = []
@@ -223,7 +211,6 @@ if page_selection == "📝 Quiz Çöz":
             st.session_state.all_questions = all_loaded
             st.success(f"{len(all_loaded)} soru yüklendi.")
 
-        # 3. Quiz Oluşturma
         if st.session_state.all_questions:
             st.markdown("---")
             mode = st.radio("Çalışma Modu", ["Chapter Bazlı", "Karma Test"])
@@ -235,7 +222,7 @@ if page_selection == "📝 Quiz Çöz":
                 sel_chap = st.selectbox("Chapter Seç:", chapters)
                 new_quiz = [q for q in all_qs if q['chapter'] == sel_chap]
                 
-            else: # Karma
+            else: 
                 chapters = sorted(list(set(q['chapter'] for q in all_qs)))
                 target_chaps = st.multiselect("Dahil Et:", chapters)
                 count = st.number_input("Soru Sayısı:", 5, 200, 20)
@@ -254,7 +241,6 @@ if page_selection == "📝 Quiz Çöz":
                      st.session_state.current_quiz = new_quiz
                      st.session_state.user_answers = {}
 
-    # --- ANA EKRAN ---
     if not st.session_state.current_quiz:
         st.info("👈 Başlamak için sol menüden soru dosyalarını yükleyin.")
     else:
@@ -262,10 +248,8 @@ if page_selection == "📝 Quiz Çöz":
         
         for i, q in enumerate(st.session_state.current_quiz):
             with st.expander(f"Soru {i+1} - {q['id']}", expanded=True):
-                # HTML Render
                 st.markdown(q['body_html'], unsafe_allow_html=True)
                 
-                # Şıklar
                 opts = list(q['options'].keys())
                 fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
                 key = f"ans_{i}_{q['id']}"
@@ -281,9 +265,6 @@ if page_selection == "📝 Quiz Çöz":
                     if q.get('ref'):
                         st.caption(f"Ref: {q['ref']}")
 
-# -----------------------------------------------------------------------------
-# SAYFA 2: SLAYTLAR
-# -----------------------------------------------------------------------------
 elif page_selection == "📊 Ders Slaytları":
     st.subheader("📊 Ders Materyalleri")
     if not os.path.exists(SLIDES_DIR):
