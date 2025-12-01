@@ -16,6 +16,7 @@ from utils.email_helper import send_reset_code, send_admin_notification
 # AYARLAR
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="ekoTestBank", page_icon="🎓", layout="wide")
+st.markdown("<div id='en-tepe'></div>", unsafe_allow_html=True)
 init_db()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -258,6 +259,21 @@ with st.sidebar:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     if st.button("Teşekkür Etmek Tamamen Ücretsiz", type="primary", use_container_width=True):
         feedback_dialog()
+        
+    st.markdown("""
+    <a href="#en-tepe" style="
+        display: block;
+        text-align: center;
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #262730;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        border: 1px solid #444;
+        font-weight: bold;
+    ">⬆️ Sayfa Başına Dön</a>
+    """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # 1. QUIZ ÇÖZ
@@ -397,14 +413,7 @@ elif menu == "📊 Ders Slaytları":
 # -----------------------------------------------------------------------------
 st.markdown("---")
 st.markdown("""
-<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button>
 <script>
-var mybutton = document.getElementById("myBtn");
-window.onscroll = function() {scrollFunction()};
-function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}
-function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}
-
-// Teşekkür butonunu bulup süsleme (Sidebar içinde olduğu için)
 const buttons = window.parent.document.querySelectorAll('button');
 buttons.forEach(btn => {
     if (btn.innerText.includes("TEŞEKKÜR ET")) {
@@ -416,6 +425,7 @@ buttons.forEach(btn => {
 });
 </script>
 """, unsafe_allow_html=True)
+
 
 
 
