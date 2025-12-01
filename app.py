@@ -27,14 +27,13 @@ def load_css(is_dark_mode=True):
     with open(css_path) as f:
         base_css = f.read()
     
-    # Gece/Gündüz Modu İçin Dinamik CSS
+    # Sadece temel renkleri değiştiriyoruz, expander stili style.css'den gelecek
     if is_dark_mode:
         theme_css = """
         <style>
             .stApp { background-color: #0E1117; color: #FAFAFA; }
             .stSidebar { background-color: #262730; }
-            div[data-testid="stExpander"] { background-color: #262730; border: 1px solid #444; }
-            p, h1, h2, h3 { color: #FAFAFA !important; }
+            p, h1, h2, h3, label { color: #FAFAFA !important; }
         </style>
         """
     else:
@@ -42,8 +41,7 @@ def load_css(is_dark_mode=True):
         <style>
             .stApp { background-color: #FFFFFF; color: #31333F; }
             .stSidebar { background-color: #F0F2F6; }
-            div[data-testid="stExpander"] { background-color: #FFFFFF; border: 1px solid #ddd; }
-            p, h1, h2, h3 { color: #31333F !important; }
+            p, h1, h2, h3, label { color: #31333F !important; }
         </style>
         """
     
@@ -162,35 +160,59 @@ if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
     
     # B) QUIZ ÇÖZ MODU (Chapter & Karma)
     else: 
-        # Mod Seçimi (Eskisi gibi)
-        quiz_mode = st.radio("Çalışma Modu Seçin:", ["📚 Chapter Bazlı", "🔀 Karma Test"], horizontal=True)
-        st.markdown("---")
+        # Mod Seçimi (Radyo butonlarını yan yana alalım daha şık durur)
+        st.markdown("### 🎯 Çalışma Modu")
+        quiz_mode = st.radio("Mod Seçimi:", ["📚 Chapter Bazlı", "🔀 Karma Test"], horizontal=True, label_visibility="collapsed")
+        
+        st.write("") # Biraz boşluk
 
-        with st.expander("🛠️ Test Ayarları", expanded=True):
+        # Expander (Açılır Kutu) Tasarımı
+        with st.expander("🛠️ Test Konfigürasyonu", expanded=True):
             
             # 1. CHAPTER BAZLI
             if quiz_mode == "📚 Chapter Bazlı":
                 chapters = sorted(list(set(q['chapter'] for q in st.session_state.all_questions)))
-                selected_chap = st.selectbox("Hangi Chapter çalışılacak?", chapters)
                 
-                # Seçim değiştiğinde veya butonla başlatıldığında
-                if st.button("Chapter Testini Başlat", type="primary"):
+                c1, c2 = st.columns([3, 1]) # Chapter seçimi geniş, buton dar olsun
+                with c1:
+                    selected_chap = st.selectbox("Hangi Chapter çalışılacak?", chapters)
+                with c2:
+                    st.write("") # Hizalama boşluğu
+                    st.write("") 
+                    start_btn = st.button("Başlat ▶", type="primary", use_container_width=True)
+                
+                if start_btn:
                     quiz_pool = [q for q in st.session_state.all_questions if q['chapter'] == selected_chap]
                     st.session_state.current_quiz = quiz_pool
                     st.rerun()
 
-            # 2. KARMA TEST
+            # 2. KARMA TEST (Düzeltilen Yerleşim)
             else:
                 chapters = sorted(list(set(q['chapter'] for q in st.session_state.all_questions)))
-                selected_chaps = st.multiselect("Hangi Chapter'lar dahil olsun?", chapters, default=chapters)
                 
-                col_x, col_y = st.columns(2)
-                with col_x:
-                    q_count = st.number_input("Soru Sayısı:", 5, 200, 20)
-                with col_y:
-                    is_random = st.checkbox("Soruları Karıştır", value=True)
+                # Çoklu seçimi en üste koyuyoruz
+                selected_chaps = st.multiselect("Dahil edilecek Chapter'lar:", chapters, default=chapters, placeholder="Chapter seçin...")
                 
-                if st.button("Karma Test Oluştur", type="primary"):
+                st.write("") # Boşluk
+                
+                # İki sütuna bölüyoruz: Solda Ayarlar, Sağda Oluştur Butonu
+                col_sett, col_act = st.columns([2, 1])
+                
+                with col_sett:
+                    # İç içe sütun ile sayı ve karıştırma ayarını yan yana koyalım
+                    sub_c1, sub_c2 = st.columns(2)
+                    with sub_c1:
+                        q_count = st.number_input("Soru Sayısı:", 5, 200, 20)
+                    with sub_c2:
+                        st.write("") 
+                        st.write("") 
+                        is_random = st.checkbox("Soruları Karıştır", value=True)
+                
+                with col_act:
+                    st.write("") # Hizalama
+                    create_btn = st.button("Testi Oluştur ✨", type="primary", use_container_width=True)
+                
+                if create_btn:
                     filtered = [q for q in st.session_state.all_questions if q['chapter'] in selected_chaps]
                     if not filtered:
                         st.error("Lütfen en az bir chapter seçin.")
@@ -296,8 +318,11 @@ elif menu == "📊 Ders Slaytları":
 # -----------------------------------------------------------------------------
 # ALT BİLGİ & SCROLL TO TOP
 # -----------------------------------------------------------------------------
-st.markdown("---")
-st.markdown('<button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button>', unsafe_allow_html=True)
+st.markdown("""
+<div class="thank-container">
+    <button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button>
+</div>
+""", unsafe_allow_html=True)
 
 # Scroll to Top Butonu (HTML/JS)
 st.markdown("""
@@ -318,3 +343,4 @@ function topFunction() {
 }
 </script>
 """, unsafe_allow_html=True)
+
