@@ -10,8 +10,8 @@ load_dotenv()
 
 # Kendi modüllerimiz
 from utils.docx_parser import parse_docx
-from utils.db_manager import * # Hepsini al
-from utils.email_helper import send_reset_code
+from utils.db_manager import *
+from utils.email_helper import send_reset_code, send_admin_notification
 
 # -----------------------------------------------------------------------------
 # AYARLAR
@@ -23,11 +23,56 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "questions")
 SLIDES_DIR = os.path.join(BASE_DIR, "data", "slides")
 
-# CSS
-css_path = os.path.join(BASE_DIR, "assets", "style.css")
-if os.path.exists(css_path):
-    with open(css_path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+# CSS (Teşekkür butonu ve Scroll ayarları için güncellendi)
+st.markdown("""
+<style>
+    /* Resimler */
+    img { max-width: 100%; max-height: 350px; border-radius: 5px; }
+    
+    /* Soruya Git Butonunun Gideceği Yer için Boşluk (Header'ın altında kalmasın diye) */
+    div[id^='q-'] {
+        scroll-margin-top: 80px; 
+    }
+
+    /* Teşekkür Butonu Stili (Streamlit butonunu eziyoruz) */
+    div.stButton > button.thank-btn-style {
+        background: linear-gradient(90deg, #FF4B4B, #FF914D);
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 50px;
+        font-weight: bold;
+        transition: transform 0.2s;
+        width: 100%;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    div.stButton > button.thank-btn-style:hover {
+        transform: scale(1.02);
+        border-color: white;
+        color: white;
+    }
+    div.stButton > button.thank-btn-style:focus {
+        color: white;
+    }
+
+    /* Scroll to Top Butonu */
+    #myBtn {
+        display: none;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 99;
+        border: none;
+        background-color: #FF4B4B;
+        color: white;
+        cursor: pointer;
+        padding: 10px;
+        border-radius: 50%;
+        font-size: 18px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown("""<meta name="apple-mobile-web-app-capable" content="yes"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">""", unsafe_allow_html=True)
 
@@ -39,8 +84,41 @@ if 'current_quiz' not in st.session_state: st.session_state.current_quiz = []
 if 'data_loaded' not in st.session_state: st.session_state.data_loaded = False
 if 'username' not in st.session_state: st.session_state.username = None 
 if 'role' not in st.session_state: st.session_state.role = None 
-if 'reset_stage' not in st.session_state: st.session_state.reset_stage = 0 # 0: Yok, 1: Kod Gir, 2: Şifre Gir
+if 'reset_stage' not in st.session_state: st.session_state.reset_stage = 0 
 if 'reset_email' not in st.session_state: st.session_state.reset_email = ""
+
+# -----------------------------------------------------------------------------
+# DİALOG (POPUP) FONKSİYONLARI
+# -----------------------------------------------------------------------------
+@st.dialog("✨ Bize Ulaşın & Teşekkür Edin")
+def feedback_dialog():
+    st.write("Uygulamayı beğendiyseniz bir teşekkür bırakabilir veya hata bildirebilirsiniz.")
+    
+    # 1. Hızlı Teşekkür (Herkese Açık)
+    st.subheader("💖 Hızlı Etkileşim")
+    if st.button("🚀 Harika bir uygulama! (Teşekkür Gönder)", use_container_width=True):
+        user_display = st.session_state.username if st.session_state.username else "Misafir Kullanıcı"
+        send_admin_notification("Teşekkür Mesajı", "Bir kullanıcı uygulamayı beğendi ve teşekkür butonuyla bildirim gönderdi.", user_display)
+        st.success("Teşekkürünüz iletildi! İyi çalışmalar 🎓")
+        time.sleep(1.5)
+        st.rerun()
+
+    st.markdown("---")
+
+    # 2. Detaylı Yorum (Sadece Üyeler)
+    st.subheader("✍️ Detaylı Geri Bildirim")
+    if st.session_state.username:
+        with st.form("feedback_form"):
+            msg = st.text_area("Mesajınız, öneriniz veya hata bildiriminiz:", placeholder="Buraya yazın...")
+            submit = st.form_submit_button("Gönder")
+            
+            if submit and msg:
+                send_admin_notification("Kullanıcı Yorumu", msg, st.session_state.username)
+                st.success("Mesajınız yöneticiye iletildi.")
+                time.sleep(1.5)
+                st.rerun()
+    else:
+        st.info("Detaylı mesaj yazmak için lütfen **Giriş Yapın**.")
 
 # -----------------------------------------------------------------------------
 # FONKSİYONLAR
@@ -67,72 +145,50 @@ def load_data():
     st.rerun()
 
 # -----------------------------------------------------------------------------
-# SIDEBAR (LOGIN & MENÜ)
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# SIDEBAR (LOGIN & MENÜ)
+# SIDEBAR
 # -----------------------------------------------------------------------------
 with st.sidebar:
     logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
-    if os.path.exists(logo_path): 
-        st.image(logo_path, width=100)
-    else: 
-        st.title("🎓 ekoTestBank")
+    if os.path.exists(logo_path): st.image(logo_path, width=100)
+    else: st.title("🎓 ekoTestBank")
     
     st.write("---")
     
     if st.session_state.username:
-        # --- GİRİŞ YAPILMIŞ DURUM ---
         st.success(f"👤 **{st.session_state.username}**")
         if st.button("Çıkış Yap", type="secondary", use_container_width=True):
             st.session_state.username = None
             st.session_state.role = None
             st.rerun()
             
-        # --- SADECE ADMIN GÖRÜR ---
         if st.session_state.role == 'admin':
             st.markdown("---")
-            st.error("🔒 **YÖNETİCİ PANELİ**")
-            
-            # 1. Kullanıcı Yönetimi
-            with st.expander("🛠️ Şifre Yönetimi"):
-                users_list = get_all_users() # db_manager'dan gelir
+            st.warning("🔒 **YÖNETİCİ**")
+            with st.expander("🛠️ Kullanıcılar"):
+                users_list = get_all_users()
                 if users_list:
-                    selected_u = st.selectbox("Kullanıcı Seç:", users_list)
-                    new_p = st.text_input("Yeni Şifre Ata:", type="password", key="admin_new_pass")
-                    if st.button("Şifreyi Güncelle", use_container_width=True):
+                    selected_u = st.selectbox("Kullanıcı:", users_list)
+                    new_p = st.text_input("Yeni Şifre:", type="password")
+                    if st.button("Güncelle"):
                         if new_p:
                             admin_reset_password(selected_u, new_p)
-                            st.success(f"{selected_u} güncellendi!")
-                        else:
-                            st.warning("Şifre girmediniz.")
-                else: 
-                    st.info("Henüz kayıtlı kullanıcı yok.")
+                            st.success("Güncellendi!")
+                else: st.info("Kullanıcı yok.")
             
-            # 2. Veritabanı Sıfırlama (İstediğin Özellik)
-            with st.expander("💣 Tehlikeli Bölge"):
-                st.warning("Tüm kullanıcılar ve hatalar silinir!")
-                if st.button("🧨 Fabrika Ayarlarına Dön", type="primary", use_container_width=True):
+            with st.expander("⚠️ Geliştirici"):
+                if st.button("🧨 DB Sıfırla"):
                     import os
                     db_path = os.path.join("data", "user_data.db")
                     if os.path.exists(db_path):
-                        try:
-                            os.remove(db_path) # Dosyayı sil
-                            st.toast("Veritabanı imha edildi! Yeniden kuruluyor...", icon="🔥")
-                            time.sleep(2)
-                            init_db() # Yeni ve temiz DB oluştur
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Hata: {e}")
-                    else:
-                        st.warning("Zaten veritabanı yok.")
-
+                        os.remove(db_path)
+                        st.toast("Silindi!", icon="🗑️")
+                        time.sleep(2)
+                        init_db()
+                        st.rerun()
     else:
-        # --- GİRİŞ YAPILMAMIŞ DURUM (Misafir) ---
         st.info("Misafir Modu")
         tab1, tab2, tab3 = st.tabs(["Giriş", "Kayıt", "Unuttum"])
         
-        # Giriş Sekmesi
         with tab1:
             l_user = st.text_input("Kullanıcı Adı", key="l_u")
             l_pass = st.text_input("Şifre", type="password", key="l_p")
@@ -144,29 +200,21 @@ with st.sidebar:
                     st.success("Giriş Başarılı!")
                     time.sleep(0.5)
                     st.rerun()
-                else:
-                    st.error("Hatalı bilgi.")
+                else: st.error("Hatalı bilgi.")
 
-        # Kayıt Sekmesi
         with tab2:
             r_user = st.text_input("Kullanıcı Adı", key="r_u")
             r_mail = st.text_input("E-Posta", key="r_m")
             r_pass = st.text_input("Şifre (Min 6)", type="password", key="r_p")
             if st.button("Kayıt Ol", use_container_width=True):
-                # Basit Regex Kontrolü
-                import re
-                if not r_user or not r_mail or not r_pass:
-                    st.warning("Alanları doldurun.")
-                elif not re.match(r"[^@]+@[^@]+\.[^@]+", r_mail):
-                    st.error("Geçersiz E-Posta.")
-                else:
+                if r_user and r_mail and r_pass:
                     res = add_user(r_user, r_mail, r_pass)
-                    if res == "success": st.success("Kayıt Başarılı! Giriş yapınız.")
-                    elif res == "email_exist_error": st.error("Bu e-posta kayıtlı.")
+                    if res == "success": st.success("Kayıt Başarılı!")
+                    elif res == "email_exist_error": st.error("E-posta kayıtlı.")
                     elif res == "user_exist_error": st.error("Kullanıcı adı alınmış.")
-                    else: st.error("Hata oluştu.")
+                    else: st.error("Hata.")
+                else: st.warning("Eksik bilgi.")
 
-        # Şifremi Unuttum Sekmesi
         with tab3:
             if st.session_state.reset_stage == 0:
                 f_mail = st.text_input("Kayıtlı E-Posta:", key="f_m")
@@ -179,36 +227,31 @@ with st.sidebar:
                             st.session_state.reset_stage = 1
                             st.success("Kod gönderildi!")
                             st.rerun()
-                        else: st.error(f"Mail hatası: {msg}")
+                        else: st.error(f"Hata: {msg}")
                     else: st.error("Mail bulunamadı.")
-            
             elif st.session_state.reset_stage == 1:
                 st.info(f"Kod gönderildi: {st.session_state.reset_email}")
-                f_code = st.text_input("Doğrulama Kodu:", key="f_c")
+                f_code = st.text_input("Kod:", key="f_c")
                 if st.button("Doğrula", use_container_width=True):
                     if verify_reset_code(st.session_state.reset_email, f_code):
                         st.session_state.reset_stage = 2
                         st.rerun()
                     else: st.error("Hatalı kod.")
-            
             elif st.session_state.reset_stage == 2:
                 new_pass = st.text_input("Yeni Şifre:", type="password", key="n_p")
                 if st.button("Değiştir", use_container_width=True):
                     if len(new_pass) >= 6:
                         reset_password_with_code(st.session_state.reset_email, new_pass)
-                        st.success("Başarılı! Giriş yapabilirsiniz.")
+                        st.success("Şifre değişti!")
                         st.session_state.reset_stage = 0
                         time.sleep(2)
                         st.rerun()
-                    else: st.error("Şifre çok kısa.")
+                    else: st.error("Kısa şifre.")
 
     st.write("---")
     menu = st.radio("Menü", ["📝 Quiz Çöz", "❌ Hatalarım", "📊 Ders Slaytları"])
     st.markdown("---")
-    
-    # İstatistik ve Yenileme
     if st.session_state.data_loaded:
-        st.caption(f"📊 {len(st.session_state.all_questions)} soru aktif.")
         if st.button("🔄 Verileri Yenile", use_container_width=True):
             st.session_state.data_loaded = False
             st.session_state.all_questions = []
@@ -250,16 +293,34 @@ if menu == "📝 Quiz Çöz":
     current_qs = st.session_state.current_quiz
     if not current_qs: st.info("👈 Test oluşturun.")
     else:
+        # --- DÜZELTİLMİŞ SORUYA GİT (JUMP) ---
         with st.sidebar:
             st.markdown("---")
             q_map = {f"{i+1}. {q['id']}": i for i, q in enumerate(current_qs)}
-            jump = st.selectbox("🔎 Git:", list(q_map.keys()), index=None)
-            if jump:
-                idx = q_map[jump]
-                st.markdown(f"<script>location.href = '#q-{idx}';</script>", unsafe_allow_html=True)
+            jump_key = st.selectbox("🔎 Git:", list(q_map.keys()), index=None)
+            
+            if jump_key:
+                idx = q_map[jump_key]
+                # HTML Anchor Link (Buton Görünümlü)
+                st.markdown(f"""
+                <a href="#q-{idx}" style="
+                    display: block;
+                    width: 100%;
+                    padding: 8px;
+                    background-color: #FF4B4B;
+                    color: white;
+                    text-align: center;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    margin-top: 5px;
+                ">➡️ Soruya Git</a>
+                """, unsafe_allow_html=True)
 
         for i, q in enumerate(current_qs):
+            # Çapa Noktası (CSS scroll-margin ile desteklenir)
             st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
+            
             with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
                 st.markdown(q['body_html'], unsafe_allow_html=True)
                 opts = list(q['options'].keys())
@@ -298,7 +359,7 @@ elif menu == "❌ Hatalarım":
 
     if not quiz_pool: st.success("🎉 Hatanız yok!")
     else:
-        st.info(f"{len(quiz_pool)} hatalı soru var.")
+        st.info(f"{len(quiz_pool)} hatalı soru.")
         for i, q in enumerate(quiz_pool):
             with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
                 st.markdown(q['body_html'], unsafe_allow_html=True)
@@ -332,11 +393,29 @@ elif menu == "📊 Ders Slaytları":
         pdf_viewer(path, height=800)
     else: st.info("Dosya yok.")
 
-# FOOTER
+# -----------------------------------------------------------------------------
+# FOOTER & POPUP
+# -----------------------------------------------------------------------------
 st.markdown("---")
-st.markdown("""<div class="thank-wrapper"><button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button></div><button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
 
+# Ortalanmış Buton Alanı
+col1, col2, col3 = st.columns([1,2,1])
+with col2:
+    # Bu butona özel CSS class atadık (thank-btn-style)
+    if st.button("✨ TEŞEKKÜR ETMEK TAMAMEN ÜCRETSİZ ✨", type="primary", key="thank_main_btn"):
+        feedback_dialog()
 
+# Scroll JS
+st.markdown("""<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
 
-
-
+# Javascript hack: Butona CSS class ekleme
+st.markdown("""
+<script>
+    const buttons = window.parent.document.querySelectorAll('button');
+    buttons.forEach(btn => {
+        if (btn.innerText.includes("TEŞEKKÜR ETMEK")) {
+            btn.classList.add("thank-btn-style");
+        }
+    });
+</script>
+""", unsafe_allow_html=True)
