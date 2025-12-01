@@ -1,9 +1,6 @@
 # 🎓 ekoTestBank
 
-![Tests](https://github.com/mozgor19/ekoTestBank/actions/workflows/test_suite.yml/badge.svg)
-![Python](https://img.shields.org/badge/Python-3.9%2B-blue)
-![Streamlit](https://img.shields.org/badge/Streamlit-1.31%2B-ff4b4b)
-![Vibe Coding](https://img.shields.org/badge/Built%20with-Vibe%20Coding-purple?style=flat-square)
+[![Güvenlik ve Fonksiyon Testleri](https://github.com/mozgor19/eko-test-bank/actions/workflows/test_suite.yml/badge.svg)](https://github.com/mozgor19/eko-test-bank/actions/workflows/test_suite.yml)
 
 **ekoTestBank**, üniversite öğrencileri ve akademisyenler için geliştirilmiş yeni nesil bir **Soru Yönetim Sistemi**dir. 
 
