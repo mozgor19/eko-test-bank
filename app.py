@@ -27,23 +27,76 @@ def load_css(is_dark_mode=True):
     with open(css_path) as f:
         base_css = f.read()
     
-    # Sadece temel renkleri değiştiriyoruz, expander stili style.css'den gelecek
+    # Renk Paleti Tanımları
     if is_dark_mode:
-        theme_css = """
-        <style>
-            .stApp { background-color: #0E1117; color: #FAFAFA; }
-            .stSidebar { background-color: #262730; }
-            p, h1, h2, h3, label { color: #FAFAFA !important; }
-        </style>
-        """
+        # GECE MODU (Dark)
+        bg_color = "#0E1117"
+        sec_bg_color = "#262730"
+        text_color = "#FAFAFA"
+        input_bg = "#1A1C24" # Inputların içi
+        border_color = "#444444"
     else:
-        theme_css = """
-        <style>
-            .stApp { background-color: #FFFFFF; color: #31333F; }
-            .stSidebar { background-color: #F0F2F6; }
-            p, h1, h2, h3, label { color: #31333F !important; }
-        </style>
-        """
+        # GÜNDÜZ MODU (Light)
+        bg_color = "#FFFFFF"
+        sec_bg_color = "#F0F2F6"
+        text_color = "#31333F"
+        input_bg = "#FFFFFF"
+        border_color = "#D3D3D3"
+        
+    # CSS Değişkenlerini (Variables) kullanarak Streamlit'i override ediyoruz
+    theme_css = f"""
+    <style>
+        :root {{
+            --primary-color: #FF4B4B;
+            --background-color: {bg_color};
+            --secondary-background-color: {sec_bg_color};
+            --text-color: {text_color};
+            --font: sans-serif;
+        }}
+        
+        /* Ana Arka Plan */
+        .stApp {{
+            background-color: {bg_color};
+            color: {text_color};
+        }}
+        
+        /* Sidebar Arka Planı */
+        section[data-testid="stSidebar"] {{
+            background-color: {sec_bg_color};
+        }}
+        
+        /* Yazı Renkleri */
+        p, h1, h2, h3, h4, h5, h6, span, div, label {{
+            color: {text_color} !important;
+        }}
+        
+        /* Input Alanları (Selectbox, Number Input vb.) */
+        div[data-baseweb="select"] > div, 
+        div[data-baseweb="input"] > div {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+            border-color: {border_color} !important;
+        }}
+        
+        /* Dropdown içindeki yazılar (Seçenekler) */
+        div[role="listbox"] ul {{
+            background-color: {sec_bg_color} !important;
+        }}
+        
+        /* Expander Arka Planı */
+        div[data-testid="stExpander"] {{
+            background-color: {input_bg} !important;
+            border-color: {border_color} !important;
+            color: {text_color} !important;
+        }}
+        
+        /* Radyo Butonları */
+        div[role="radiogroup"] label {{
+            background-color: transparent !important;
+        }}
+
+    </style>
+    """
     
     st.markdown(theme_css, unsafe_allow_html=True)
     st.markdown(f"<style>{base_css}</style>", unsafe_allow_html=True)
@@ -318,8 +371,11 @@ elif menu == "📊 Ders Slaytları":
 # -----------------------------------------------------------------------------
 # ALT BİLGİ & SCROLL TO TOP
 # -----------------------------------------------------------------------------
+# ALT BİLGİ & BUTON
+st.markdown("---")
+# wrapper class'ı ile ortalıyoruz
 st.markdown("""
-<div class="thank-container">
+<div class="thank-wrapper">
     <button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button>
 </div>
 """, unsafe_allow_html=True)
@@ -343,4 +399,5 @@ function topFunction() {
 }
 </script>
 """, unsafe_allow_html=True)
+
 
