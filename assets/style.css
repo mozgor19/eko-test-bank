@@ -1,67 +1,24 @@
-/* --- GENEL AYARLAR --- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Sidebar Düzenlemesi */
-section[data-testid="stSidebar"] {
-    background-color: #1a1c24; /* Daha modern koyu ton */
-    border-right: 1px solid #2d303e;
+/* --- ANA KONTEYNER AYARLARI --- */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 5rem;
+    max-width: 1200px;
 }
 
-/* --- ANA İÇERİK KUTULARI (Expander) --- */
-/* Streamlit'in standart beyaz kutusunu eziyoruz */
-div[data-testid="stExpander"] {
-    background-color: #262730;
-    border: 1px solid #414452;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-div[data-testid="stExpander"] details {
-    background-color: transparent !important;
-}
-
-/* Kutunun içindeki yazılar */
-div[data-testid="stExpander"] p, 
-div[data-testid="stExpander"] label {
-    color: #FAFAFA !important;
-}
-
-/* --- INPUT ALANLARI --- */
-/* Chapter seçim kutusu ve sayı girişi */
-div[data-baseweb="select"] > div, 
-div[data-baseweb="input"] > div {
-    background-color: #0E1117 !important;
-    color: white !important;
-    border-color: #414452 !important;
-    border-radius: 8px;
-}
-
-/* --- BUTONLAR --- */
-/* Primary (Kırmızı) Butonlar */
-button[kind="primary"] {
-    background-color: #FF4B4B !important;
-    border: none !important;
-    border-radius: 8px !important;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 14px rgba(255, 75, 75, 0.4);
-}
-
-button[kind="primary"]:hover {
-    background-color: #ff6b6b !important;
-    transform: translateY(-2px);
-}
-
-/* --- TEŞEKKÜR BUTONU (YENİLENMİŞ) --- */
-.thank-container {
+/* --- TEŞEKKÜR BUTONU (ORTALANMIŞ & KÜÇÜK) --- */
+.thank-wrapper {
     display: flex;
     justify-content: center;
     align-items: center;
+    width: 100%;
     margin-top: 40px;
-    margin-bottom: 20px;
+    padding-bottom: 20px;
 }
 
 .thank-btn {
@@ -69,17 +26,19 @@ button[kind="primary"]:hover {
     background-size: 200% 200%;
     animation: gradientMove 3s ease infinite;
     color: white !important;
-    padding: 12px 30px;
-    font-size: 14px;
+    padding: 12px 35px;
+    font-size: 15px;
     font-weight: 600;
     border-radius: 50px;
     border: none;
     cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    box-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+    box-shadow: 0 4px 15px rgba(255, 75, 75, 0.3);
     transition: transform 0.2s;
-    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    /* Genişliği sınırla */
+    width: auto !important; 
+    min-width: 200px;
 }
 
 .thank-btn:hover {
@@ -92,13 +51,36 @@ button[kind="primary"]:hover {
     100% { background-position: 0% 50%; }
 }
 
-/* --- RESİMLER --- */
-img {
+/* --- DROPDOWN VE INPUT DÜZELTMELERİ --- */
+/* Bu kısım inputların arka planını zorla değiştirir */
+
+/* Selectbox ve Multiselect Kutuları */
+div[data-baseweb="select"] > div {
     border-radius: 8px;
-    border: 1px solid #444;
+    border-color: #444;
 }
 
-/* --- EN ÜSTE ÇIK BUTONU --- */
+/* Input Sayı Kutuları */
+div[data-baseweb="input"] > div {
+    border-radius: 8px;
+    border-color: #444;
+}
+
+/* Expander (Açılır Kutu) Kenarları */
+div[data-testid="stExpander"] {
+    border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Resimler */
+img {
+    border-radius: 8px;
+    max-height: 400px;
+    object-fit: contain;
+}
+
+/* Scroll to Top Butonu */
 #myBtn {
     display: none;
     position: fixed;
@@ -110,16 +92,15 @@ img {
     background-color: #FF4B4B;
     color: white;
     cursor: pointer;
-    padding: 15px;
+    padding: 0;
     border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    width: 45px;
+    height: 45px;
     font-size: 20px;
-    transition: background-color 0.3s, transform 0.3s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: background-color 0.3s;
 }
 
 #myBtn:hover {
-    background-color: #d43535;
-    transform: translateY(-3px);
+    background-color: #d63c3c;
 }
