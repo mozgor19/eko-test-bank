@@ -8,35 +8,41 @@ def init_db():
         os.makedirs("data")
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Hatalar tablosu: soru_id, chapter, hata_sayisi
+    # Tabloyu güncelle: artık 'username' alanı da var
+    # PRIMARY KEY artık (username, question_id) ikilisi.
+    # Yani aynı soruyu farklı kullanıcılar hata listesine ekleyebilir.
     c.execute('''CREATE TABLE IF NOT EXISTS mistakes
-                 (question_id TEXT PRIMARY KEY, chapter TEXT, error_count INTEGER)''')
+                 (username TEXT, question_id TEXT, chapter TEXT, error_count INTEGER, 
+                 PRIMARY KEY (username, question_id))''')
     conn.commit()
     conn.close()
 
-def log_mistake(question_id, chapter):
+def log_mistake(username, question_id, chapter):
+    """Bir kullanıcının hatasını kaydeder."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Eğer kayıt varsa hata sayısını artır, yoksa yeni kayıt oluştur
-    c.execute('''INSERT INTO mistakes (question_id, chapter, error_count)
-                 VALUES (?, ?, 1)
-                 ON CONFLICT(question_id) DO UPDATE SET error_count = error_count + 1''', 
-                 (question_id, chapter))
+    # Hata varsa sayısını artır, yoksa yeni ekle (Upsert mantığı)
+    c.execute('''INSERT INTO mistakes (username, question_id, chapter, error_count)
+                 VALUES (?, ?, ?, 1)
+                 ON CONFLICT(username, question_id) 
+                 DO UPDATE SET error_count = error_count + 1''', 
+                 (username, question_id, chapter))
     conn.commit()
     conn.close()
 
-def remove_mistake(question_id):
-    """Doğru bilinirse hatayı listeden sil (isteğe bağlı)"""
+def remove_mistake(username, question_id):
+    """Belirli bir kullanıcının belirli bir hatasını siler."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM mistakes WHERE question_id = ?", (question_id,))
+    c.execute("DELETE FROM mistakes WHERE username = ? AND question_id = ?", (username, question_id))
     conn.commit()
     conn.close()
 
-def get_mistakes():
+def get_mistakes(username):
+    """Sadece o kullanıcıya ait hataları getirir."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT question_id, chapter FROM mistakes")
+    c.execute("SELECT question_id, chapter, error_count FROM mistakes WHERE username = ?", (username,))
     data = c.fetchall()
     conn.close()
-    return data # [(id, chapter), ...] listesi döner
+    return data # [(id, chapter, count), ...]
