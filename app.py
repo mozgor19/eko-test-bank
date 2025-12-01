@@ -127,7 +127,7 @@ with st.sidebar:
                 else:
                     st.error("Hatalı bilgi.")
 
-       with tab2:
+        with tab2:
             r_user = st.text_input("Kullanıcı Adı", key="r_u")
             r_mail = st.text_input("E-Posta", key="r_m", help="Şifrenizi unutursanız bu adrese kod gönderilir.")
             r_pass = st.text_input("Şifre (Min 6)", type="password", key="r_p")
@@ -325,4 +325,5 @@ elif menu == "📊 Ders Slaytları":
 # FOOTER
 st.markdown("---")
 st.markdown("""<div class="thank-wrapper"><button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button></div><button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
+
 
