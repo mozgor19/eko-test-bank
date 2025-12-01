@@ -69,8 +69,7 @@ EMAIL_PASSWORD=abcd1234efgh5678
 ### 3. Çalıştırma Yöntemleri
 
 #### Yöntem A: Docker ile Çalıştırma (Önerilen 🐳)
-Docker dosyaları ve detaylı yapılandırma için lütfen DockerSettings.md [https://github.com/mozgor19/eko-test-bank/blob/main/DockerSettings.md] dosyasını inceleyin
-Bilgisayarınızda Docker yüklüyse tek komutla sistemi ayağa kaldırabilirsiniz:
+Docker dosyaları ve detaylı yapılandırma için lütfen [DockerSettings.md](https://github.com/mozgor19/eko-test-bank/blob/main/DockerSettings.md) dosyasını inceleyin. Bilgisayarınızda Docker yüklüyse tek komutla sistemi ayağa kaldırabilirsiniz:
 
 ```bash
 docker-compose up --build
