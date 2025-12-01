@@ -45,3 +45,45 @@ def send_reset_code(to_email, code):
         return True, "Kod gönderildi"
     except Exception as e:
         return False, str(e)
+
+def get_mail_creds():
+    """Mail bilgilerini .env veya secrets'tan çeker."""
+    sender = os.getenv("EMAIL_SENDER") or st.secrets.get("EMAIL_SENDER")
+    password = os.getenv("EMAIL_PASSWORD") or st.secrets.get("EMAIL_PASSWORD")
+    return sender, password
+
+def send_admin_notification(subject, message, user_info="Misafir"):
+    """
+    Admine (Sana) bildirim maili atar.
+    Kullanıcı teşekkür ederse veya yorum yazarsa bu çalışır.
+    """
+    sender_email, sender_password = get_mail_creds()
+    if not sender_email or not sender_password: return False
+
+    # Kendine gönderiyorsun
+    to_email = sender_email 
+
+    msg = MIMEMultipart()
+    msg['From'] = formataddr(("ekoTestBank Bildirim", sender_email))
+    msg['To'] = to_email
+    msg['Subject'] = f"🔔 {subject}"
+    
+    body = f"""
+    <h3>Yeni Bildirim</h3>
+    <p><strong>Kimden:</strong> {user_info}</p>
+    <p><strong>Mesaj:</strong></p>
+    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px;">
+    {message}
+    </blockquote>
+    """
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, to_email, msg.as_string())
+        server.quit()
+        return True
+    except:
+        return False
