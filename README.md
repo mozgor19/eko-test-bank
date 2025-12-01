@@ -48,7 +48,7 @@ Projeyi yerel ortamınızda çalıştırmak için aşağıdaki adımları izleyi
 Projeyi bilgisayarınıza indirin:
 
 ```bash
-git clone [https://github.com/mozgor19/ekoTestBank.git](https://github.com/KULLANICI_ADI/ekoTestBank.git)
+git clone https://github.com/mozgor19/ekoTestBank.git
 cd ekoTestBank
 ```
 
