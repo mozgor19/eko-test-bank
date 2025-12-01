@@ -1,0 +1,61 @@
+/* Mobil uyumluluk ve genel düzen */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 5rem;
+}
+
+/* Resimler */
+img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+/* En Üste Çık Butonu */
+#myBtn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99;
+  font-size: 18px;
+  border: none;
+  outline: none;
+  background-color: #F63366;
+  color: white;
+  cursor: pointer;
+  padding: 15px;
+  border-radius: 50%;
+  box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+}
+
+#myBtn:hover {
+  background-color: #555;
+}
+
+/* Özel Animasyonlu Buton */
+.thank-btn {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    color: white !important;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    border-radius: 50px;
+    border: none;
+    margin: 20px 0;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+@keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
