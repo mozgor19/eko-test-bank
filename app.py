@@ -17,16 +17,6 @@ from utils.email_helper import send_reset_code
 # AYARLAR
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="ekoTestBank", page_icon="🎓", layout="wide")
-
-# --- GEÇİCİ DÜZELTME KODU BAŞLANGIÇ ---
-import os
-db_file = os.path.join("data", "user_data.db")
-if "db_fixed" not in st.session_state:
-    if os.path.exists(db_file):
-        os.remove(db_file)
-        st.toast("Eski veritabanı tespit edildi ve silindi!", icon="🗑️")
-    st.session_state.db_fixed = True
-# --- GEÇİCİ DÜZELTME KODU BİTİŞ ---
 init_db()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -345,6 +335,7 @@ elif menu == "📊 Ders Slaytları":
 # FOOTER
 st.markdown("---")
 st.markdown("""<div class="thank-wrapper"><button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button></div><button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
+
 
 
 
