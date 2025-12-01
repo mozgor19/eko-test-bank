@@ -13,7 +13,6 @@ Word (.docx) tabanlı soru bankalarını saniyeler içinde analiz eder, görsell
 * Bu uygulama üzerinden herhangi bir **ticari gelir elde edilmemektedir.**
 * Proje, açık kaynak kodlu olup öğrencilerin ders çalışma süreçlerini kolaylaştırmak ve yazılım geliştirme pratiklerini öğrenmek amacıyla geliştirilmiştir.
 * İçerikte kullanılan sorular ve materyaller, kullanıcıların kendi yüklediği dosyalardan oluşur; uygulamanın kendisi telifli içerik barındırmaz.
-* 
 ---
 
 ## 🌟 Öne Çıkan Özellikler
@@ -70,7 +69,7 @@ EMAIL_PASSWORD=abcd1234efgh5678
 ### 3. Çalıştırma Yöntemleri
 
 #### Yöntem A: Docker ile Çalıştırma (Önerilen 🐳)
-Docker dosyaları ve detaylı yapılandırma için lütfen DockerSettings.md [] dosyasını inceleyin
+Docker dosyaları ve detaylı yapılandırma için lütfen DockerSettings.md [https://github.com/mozgor19/eko-test-bank/blob/main/DockerSettings.md] dosyasını inceleyin
 Bilgisayarınızda Docker yüklüyse tek komutla sistemi ayağa kaldırabilirsiniz:
 
 ```bash
