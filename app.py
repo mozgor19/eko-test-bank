@@ -147,6 +147,7 @@ with st.sidebar:
     logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
     if os.path.exists(logo_path): st.image(logo_path, width=100)
     else: st.title("🎓 ekoTestBank")
+    st.link_button("🔗 İTÜ EKO201E Ders Sayfası", "https://econ.itu.edu.tr/egitim/lisans/havuz-dersi-eko201e", use_container_width=True)
     
     st.write("---")
     
@@ -409,4 +410,5 @@ st.markdown("""
     });
 </script>
 """, unsafe_allow_html=True)
+
 
