@@ -256,7 +256,7 @@ with st.sidebar:
     
     st.write("---")
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-    if st.button("✨ Teşekkür Etmek Tamamen Ücretsiz ✨", type="primary", use_container_width=True):
+    if st.button("Teşekkür Etmek Tamamen Ücretsiz", type="primary", use_container_width=True):
         feedback_dialog()
 
 # -----------------------------------------------------------------------------
@@ -415,6 +415,7 @@ st.markdown("""
     });
 </script>
 """, unsafe_allow_html=True)
+
 
 
 
