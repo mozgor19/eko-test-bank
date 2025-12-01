@@ -4,14 +4,14 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* --- ANA KONTEYNER AYARLARI --- */
+/* Ana Konteyner */
 .block-container {
     padding-top: 2rem;
     padding-bottom: 5rem;
     max-width: 1200px;
 }
 
-/* --- TEŞEKKÜR BUTONU (ORTALANMIŞ & KÜÇÜK) --- */
+/* Teşekkür Butonu */
 .thank-wrapper {
     display: flex;
     justify-content: center;
@@ -36,9 +36,6 @@ html, body, [class*="css"] {
     transition: transform 0.2s;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    /* Genişliği sınırla */
-    width: auto !important; 
-    min-width: 200px;
 }
 
 .thank-btn:hover {
@@ -49,28 +46,6 @@ html, body, [class*="css"] {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
-}
-
-/* --- DROPDOWN VE INPUT DÜZELTMELERİ --- */
-/* Bu kısım inputların arka planını zorla değiştirir */
-
-/* Selectbox ve Multiselect Kutuları */
-div[data-baseweb="select"] > div {
-    border-radius: 8px;
-    border-color: #444;
-}
-
-/* Input Sayı Kutuları */
-div[data-baseweb="input"] > div {
-    border-radius: 8px;
-    border-color: #444;
-}
-
-/* Expander (Açılır Kutu) Kenarları */
-div[data-testid="stExpander"] {
-    border-radius: 10px;
-    border: 1px solid rgba(128, 128, 128, 0.2);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 /* Resimler */
@@ -98,9 +73,4 @@ img {
     height: 45px;
     font-size: 20px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    transition: background-color 0.3s;
-}
-
-#myBtn:hover {
-    background-color: #d63c3c;
 }
