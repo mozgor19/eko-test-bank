@@ -127,18 +127,37 @@ with st.sidebar:
                 else:
                     st.error("Hatalı bilgi.")
 
-        with tab2:
+       with tab2:
             r_user = st.text_input("Kullanıcı Adı", key="r_u")
-            r_mail = st.text_input("E-Posta", key="r_m")
+            r_mail = st.text_input("E-Posta", key="r_m", help="Şifrenizi unutursanız bu adrese kod gönderilir.")
             r_pass = st.text_input("Şifre (Min 6)", type="password", key="r_p")
+            
             if st.button("Kayıt Ol", use_container_width=True):
-                if r_user and r_mail and r_pass:
+                # 1. Basit E-Posta Format Kontrolü
+                import re
+                email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                
+                if not r_user or not r_mail or not r_pass:
+                    st.warning("Lütfen tüm alanları doldurun.")
+                elif not re.match(email_regex, r_mail):
+                    st.error("Lütfen geçerli bir e-posta adresi girin (örn: isim@mail.com).")
+                else:
+                    # Her şey tamamsa kaydet
                     res = add_user(r_user, r_mail, r_pass)
-                    if res == "success": st.success("Kayıt Başarılı! Giriş yapınız.")
-                    elif res == "email_exist_error": st.error("Bu e-posta zaten kayıtlı.")
-                    elif res == "user_exist_error": st.error("Kullanıcı adı alınmış.")
-                    else: st.error("Hata oluştu.")
-                else: st.warning("Eksik bilgi.")
+                    
+                    if res == "success": 
+                        st.success("✅ Kayıt Başarılı! 'Giriş' sekmesinden giriş yapabilirsiniz.")
+                        st.balloons() # Biraz kutlama efekti :)
+                    elif res == "email_exist_error": 
+                        st.error("Bu e-posta adresi zaten sistemde kayıtlı.")
+                    elif res == "user_exist_error": 
+                        st.error("Bu kullanıcı adı başkası tarafından alınmış.")
+                    elif res == "pass_len_error":
+                        st.error("Şifre en az 6 karakter olmalıdır.")
+                    elif res == "admin_error":
+                        st.error("Admin ismini kullanamazsınız.")
+                    else: 
+                        st.error("Bilinmeyen bir hata oluştu.")
 
         with tab3:
             # ŞİFRE SIFIRLAMA SİHİRBAZI
@@ -306,3 +325,4 @@ elif menu == "📊 Ders Slaytları":
 # FOOTER
 st.markdown("---")
 st.markdown("""<div class="thank-wrapper"><button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button></div><button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
+
