@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "questions")
 SLIDES_DIR = os.path.join(BASE_DIR, "data", "slides")
 
-# CSS Yükle (Sadece düzen için, renk ayarı yok)
+# CSS Yükle
 css_path = os.path.join(BASE_DIR, "assets", "style.css")
 if os.path.exists(css_path):
     with open(css_path) as f:
@@ -42,6 +42,8 @@ if 'current_quiz' not in st.session_state:
     st.session_state.current_quiz = []
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
+if 'username' not in st.session_state:
+    st.session_state.username = "" # Kullanıcı adı hafızası
 
 # -----------------------------------------------------------------------------
 # FONKSİYONLAR
@@ -59,7 +61,6 @@ def load_data():
         return
 
     all_loaded = []
-    # İlerleme çubuğu
     progress_text = "Sorular analiz ediliyor..."
     my_bar = st.progress(0, text=progress_text)
 
@@ -74,19 +75,39 @@ def load_data():
     st.session_state.all_questions = all_loaded
     st.session_state.data_loaded = True
     st.toast(f"✅ {len(all_loaded)} soru hazır!", icon="🎉")
-    time.sleep(1) # Kullanıcı görsün diye azıcık bekle
+    time.sleep(1) 
     st.rerun()
 
 # -----------------------------------------------------------------------------
-# KENAR ÇUBUĞU
+# KENAR ÇUBUĞU (GİRİŞ EKRANI)
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    # Logo varsa göster (yoksa hata vermez)
     logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
     if os.path.exists(logo_path):
         st.image(logo_path, width=100)
     else:
         st.title("🎓 ekoTestBank")
+    
+    st.markdown("---")
+    
+    # KULLANICI GİRİŞİ (YENİ)
+    # Eğer kullanıcı adı yoksa sor, varsa göster
+    if not st.session_state.username:
+        st.warning("⚠️ Lütfen devam etmek için bir isim girin.")
+        user_input = st.text_input("Adınız / Rumuzunuz:", placeholder="Örn: EkoOgrenci")
+        if user_input:
+            st.session_state.username = user_input
+            st.success(f"Hoşgeldin, {user_input}!")
+            time.sleep(0.5)
+            st.rerun()
+        st.stop() # İsim girmeden aşağıyı çalıştırma!
+    else:
+        st.write(f"👤 **{st.session_state.username}**")
+        if st.button("Çıkış Yap", type="secondary", use_container_width=True):
+            st.session_state.username = ""
+            st.rerun()
+
+    st.markdown("---")
     
     # Navigasyon
     menu = st.radio("Menü", ["📝 Quiz Çöz", "❌ Hatalarım", "📊 Ders Slaytları"])
@@ -116,14 +137,20 @@ if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
 
     quiz_pool = []
     
-    # A) HATALARIM MODU
+    # A) HATALARIM MODU (GÜNCELLENDİ)
     if menu == "❌ Hatalarım":
-        mistake_ids = [m[0] for m in get_mistakes()] 
+        # Sadece giriş yapan kullanıcının hatalarını çek
+        user_mistakes = get_mistakes(st.session_state.username)
+        mistake_ids = [m[0] for m in user_mistakes] 
+        
+        # ID'lere göre soruları bul
         quiz_pool = [q for q in st.session_state.all_questions if q['id'] in mistake_ids]
+        
         if not quiz_pool:
-            st.success("🎉 Hiç kayıtlı hatanız yok!")
+            st.success(f"🎉 Harika {st.session_state.username}! Hiç hata kaydın yok.")
             st.stop()
-        st.info(f"Hata yapılan {len(quiz_pool)} soru var.")
+        
+        st.info(f"Toplam {len(quiz_pool)} adet hatalı veya tekrar edilmesi gereken sorunuz var.")
     
     # B) QUIZ ÇÖZ MODU
     else: 
@@ -131,7 +158,6 @@ if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
         st.divider()
 
         with st.expander("🛠️ Test Ayarları", expanded=True):
-            # 1. CHAPTER BAZLI
             if quiz_mode == "📚 Chapter Bazlı":
                 chapters = sorted(list(set(q['chapter'] for q in st.session_state.all_questions)))
                 selected_chap = st.selectbox("Chapter Seç:", chapters)
@@ -141,7 +167,6 @@ if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
                     st.session_state.current_quiz = quiz_pool
                     st.rerun()
 
-            # 2. KARMA TEST
             else:
                 chapters = sorted(list(set(q['chapter'] for q in st.session_state.all_questions)))
                 selected_chaps = st.multiselect("Dahil Et:", chapters, default=chapters)
@@ -180,31 +205,48 @@ if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
         for i, q in enumerate(current_qs):
             st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
             
-            with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
+            # Kart Başlığı
+            card_title = f"Soru {i+1} ({q['id']})"
+            
+            with st.expander(card_title, expanded=True):
+                # Soru Metni
                 st.markdown(q['body_html'], unsafe_allow_html=True)
                 
+                # Şıklar
                 opts = list(q['options'].keys())
                 fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
                 
                 key = f"ans_{menu}_{i}_{q['id']}"
                 user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
                 
+                # Cevap Kontrolü
                 if user_choice:
                     sel = user_choice.split(')')[0]
                     corr = q['answer']
                     
                     if sel == corr:
                         st.success("✅ Doğru")
-                        if menu == "❌ Hatalarım": remove_mistake(q['id'])
+                        # Hata modundaysa otomatik silme opsiyonu (burayı pasif bıraktım, kullanıcı elle silsin diye)
+                        # remove_mistake(st.session_state.username, q['id']) 
                     else:
                         st.error(f"❌ Yanlış. Cevap: **{corr.upper()}**")
-                        log_mistake(q['id'], q['chapter'])
+                        # Hatayı kullanıcı adına kaydet
+                        log_mistake(st.session_state.username, q['id'], q['chapter'])
                     
                     st.divider()
                     c1, c2, c3 = st.columns(3)
                     if q.get('ref'): c1.caption(f"Ref: {q['ref']}")
                     if q.get('top'): c2.caption(f"Konu: {q['top']}")
                     if q.get('msc'): c3.caption(f"Tip: {q['msc']}")
+
+                # MANUEL SİLME BUTONU (Sadece Hatalarım Sayfasında Çıkar)
+                if menu == "❌ Hatalarım":
+                    st.write("")
+                    if st.button("🗑️ Bu soruyu öğrendim, listeden sil", key=f"del_{q['id']}"):
+                        remove_mistake(st.session_state.username, q['id'])
+                        st.toast("Soru hatalar listesinden silindi!", icon="🗑️")
+                        time.sleep(1)
+                        st.rerun()
 
 # -----------------------------------------------------------------------------
 # SAYFA: SLAYTLAR
