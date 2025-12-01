@@ -2,6 +2,7 @@ import sqlite3
 import os
 import hashlib
 import streamlit as st
+import html  # XSS koruması için
 
 DB_PATH = os.path.join("data", "user_data.db")
 
@@ -18,55 +19,56 @@ def init_db():
         os.makedirs("data")
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
-    # Hatalar Tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS mistakes
                  (username TEXT, question_id TEXT, chapter TEXT, error_count INTEGER, 
                  PRIMARY KEY (username, question_id))''')
-    
-    # Kullanıcılar Tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (username TEXT PRIMARY KEY, password TEXT, role TEXT)''')
     conn.commit()
     conn.close()
 
-# --- KULLANICI İŞLEMLERİ ---
+# --- KULLANICI İŞLEMLERİ (GÜVENLİK GÜNCELLEMESİ) ---
 def add_user(username, password):
-    # Admin ismini kimse alamasın
-    if username.lower() == "admin":
-        return False
-        
+    # 1. XSS Temizliği (Sanitization)
+    # <script>alert('hack')</script> -> &lt;script&gt;alert(&#x27;hack&#x27;)&lt;/script&gt;
+    clean_username = html.escape(username)
+    
+    # 2. Admin Kontrolü
+    if clean_username.lower() == "admin":
+        return "admin_name_error" # Admin ismini alamaz
+
+    # 3. Şifre Politikası (Password Policy)
+    if len(password) < 8:
+        return "password_length_error"
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
         c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
-                  (username, make_hash(password), 'user'))
+                  (clean_username, make_hash(password), 'user'))
         conn.commit()
-        return True
+        return "success"
     except sqlite3.IntegrityError:
-        return False
+        return "exists_error" # Kullanıcı adı zaten var
     finally:
         conn.close()
 
 def login_user(username, password):
-    # 1. Önce Admin kontrolü (Secrets üzerinden)
-    if username.lower() == "admin":
+    # Giriş yaparken de inputu temizleyelim ki eşleşme doğru olsun
+    clean_username = html.escape(username)
+
+    # 1. Admin Kontrolü (Secrets)
+    if clean_username.lower() == "admin":
         try:
-            # Secrets'tan şifreyi çek
-            admin_secret = st.secrets["ADMIN_PASSWORD"]
-            if password == admin_secret:
+            if password == st.secrets["ADMIN_PASSWORD"]:
                 return "admin"
-        except FileNotFoundError:
-            # Lokal'de secrets.toml yoksa
-            pass
-        except KeyError:
-            # Secrets tanımlı değilse
+        except:
             pass
 
-    # 2. Normal Kullanıcı Kontrolü (DB üzerinden)
+    # 2. Normal Kullanıcı
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT password, role FROM users WHERE username = ?", (username,))
+    c.execute("SELECT password, role FROM users WHERE username = ?", (clean_username,))
     data = c.fetchone()
     conn.close()
     
@@ -76,9 +78,8 @@ def login_user(username, password):
             return role
     return None
 
-# --- ADMIN ÖZEL FONKSİYONLARI ---
+# --- ADMIN FONKSİYONLARI ---
 def get_all_users():
-    """Tüm kullanıcıları listeler (Admin için)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT username FROM users")
@@ -87,7 +88,6 @@ def get_all_users():
     return [user[0] for user in data]
 
 def admin_reset_password(username, new_password):
-    """Adminin bir kullanıcının şifresini sıfırlaması için"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE users SET password = ? WHERE username = ?", 
