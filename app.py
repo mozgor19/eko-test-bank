@@ -396,25 +396,27 @@ elif menu == "📊 Ders Slaytları":
 # FOOTER & POPUP
 # -----------------------------------------------------------------------------
 st.markdown("---")
-
-# Ortalanmış Buton Alanı
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    if st.button("✨ Teşekkür Etmek Tamamen Ücretsiz ✨", type="primary", key="thank_main_btn"):
-        feedback_dialog()
-
-st.markdown("""<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
-
 st.markdown("""
+<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button>
 <script>
-    const buttons = window.parent.document.querySelectorAll('button');
-    buttons.forEach(btn => {
-        if (btn.innerText.includes("TEŞEKKÜR ETMEK")) {
-            btn.classList.add("thank-btn-style");
-        }
-    });
+var mybutton = document.getElementById("myBtn");
+window.onscroll = function() {scrollFunction()};
+function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}
+function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}
+
+// Teşekkür butonunu bulup süsleme (Sidebar içinde olduğu için)
+const buttons = window.parent.document.querySelectorAll('button');
+buttons.forEach(btn => {
+    if (btn.innerText.includes("TEŞEKKÜR ET")) {
+        btn.style.background = "linear-gradient(90deg, #FF4B4B, #FF914D)";
+        btn.style.color = "white";
+        btn.style.fontWeight = "bold";
+        btn.style.border = "none";
+    }
+});
 </script>
 """, unsafe_allow_html=True)
+
 
 
 
