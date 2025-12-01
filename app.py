@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 # Env yükle
 load_dotenv()
 
-# Kendi modüllerimiz
 from utils.docx_parser import parse_docx
 from utils.db_manager import *
 from utils.email_helper import send_reset_code, send_admin_notification
@@ -23,7 +22,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "questions")
 SLIDES_DIR = os.path.join(BASE_DIR, "data", "slides")
 
-# CSS (Teşekkür butonu ve Scroll ayarları için güncellendi)
 st.markdown("""
 <style>
     /* Resimler */
@@ -94,7 +92,6 @@ if 'reset_email' not in st.session_state: st.session_state.reset_email = ""
 def feedback_dialog():
     st.write("Uygulamayı beğendiyseniz bir teşekkür bırakabilir veya hata bildirebilirsiniz.")
     
-    # 1. Hızlı Teşekkür (Herkese Açık)
     st.subheader("💖 Hızlı Etkileşim")
     if st.button("🚀 Harika bir uygulama! (Teşekkür Gönder)", use_container_width=True):
         user_display = st.session_state.username if st.session_state.username else "Misafir Kullanıcı"
@@ -105,7 +102,6 @@ def feedback_dialog():
 
     st.markdown("---")
 
-    # 2. Detaylı Yorum (Sadece Üyeler)
     st.subheader("✍️ Detaylı Geri Bildirim")
     if st.session_state.username:
         with st.form("feedback_form"):
@@ -187,7 +183,7 @@ with st.sidebar:
                         st.rerun()
     else:
         st.info("Misafir Modu")
-        tab1, tab2, tab3 = st.tabs(["Giriş", "Kayıt", "Unuttum"])
+        tab1, tab2, tab3 = st.tabs(["Giriş", "Kayıt", "Şifremi Unuttum"])
         
         with tab1:
             l_user = st.text_input("Kullanıcı Adı", key="l_u")
@@ -293,7 +289,6 @@ if menu == "📝 Quiz Çöz":
     current_qs = st.session_state.current_quiz
     if not current_qs: st.info("👈 Test oluşturun.")
     else:
-        # --- DÜZELTİLMİŞ SORUYA GİT (JUMP) ---
         with st.sidebar:
             st.markdown("---")
             q_map = {f"{i+1}. {q['id']}": i for i, q in enumerate(current_qs)}
@@ -301,7 +296,6 @@ if menu == "📝 Quiz Çöz":
             
             if jump_key:
                 idx = q_map[jump_key]
-                # HTML Anchor Link (Buton Görünümlü)
                 st.markdown(f"""
                 <a href="#q-{idx}" style="
                     display: block;
@@ -318,7 +312,6 @@ if menu == "📝 Quiz Çöz":
                 """, unsafe_allow_html=True)
 
         for i, q in enumerate(current_qs):
-            # Çapa Noktası (CSS scroll-margin ile desteklenir)
             st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
             
             with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
@@ -401,14 +394,11 @@ st.markdown("---")
 # Ortalanmış Buton Alanı
 col1, col2, col3 = st.columns([1,2,1])
 with col2:
-    # Bu butona özel CSS class atadık (thank-btn-style)
-    if st.button("✨ TEŞEKKÜR ETMEK TAMAMEN ÜCRETSİZ ✨", type="primary", key="thank_main_btn"):
+    if st.button("✨ Teşekkür Etmek Tamamen Ücretsiz ✨", type="primary", key="thank_main_btn"):
         feedback_dialog()
 
-# Scroll JS
 st.markdown("""<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button><script>var mybutton = document.getElementById("myBtn");window.onscroll = function() {scrollFunction()};function scrollFunction() {if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {mybutton.style.display = "block";} else {mybutton.style.display = "none";}}function topFunction() {document.body.scrollTop = 0;document.documentElement.scrollTop = 0;}</script>""", unsafe_allow_html=True)
 
-# Javascript hack: Butona CSS class ekleme
 st.markdown("""
 <script>
     const buttons = window.parent.document.querySelectorAll('button');
@@ -419,3 +409,4 @@ st.markdown("""
     });
 </script>
 """, unsafe_allow_html=True)
+
