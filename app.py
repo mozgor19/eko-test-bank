@@ -50,7 +50,7 @@ def parse_docx_with_images(file_obj, chapter_name):
     ref_pattern = re.compile(r'REF:\s+(.*)')
     
     # Bu kelimeler geçiyorsa hafızadaki resmi çağıracağız
-    figure_keywords = ["refer to", "figure", "table", "graph", "chart", "diagram", "shown in", "following", "aşağıdaki", "göre"]
+    figure_keywords = ["refer to figure", "refer to table"]
 
     elements = soup.find_all(['p', 'table']) 
     
@@ -293,3 +293,4 @@ elif page_selection == "📊 Ders Slaytları":
             path = os.path.join(SLIDES_DIR, slide_map[sel_name])
             st.write(f"**Görüntülenen:** `{slide_map[sel_name]}`")
             display_pdf(path)
+
