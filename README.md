@@ -2,7 +2,7 @@
 
 [![Güvenlik ve Fonksiyon Testleri](https://github.com/mozgor19/eko-test-bank/actions/workflows/test_suite.yml/badge.svg)](https://github.com/mozgor19/eko-test-bank/actions/workflows/test_suite.yml)
 
-**ekoTestBank**, İTÜ EKO 201E dersi için geliştirilmiş yeni nesil bir **Soru Yönetim Sistemi**dir. 
+**ekoTestBank**, [İTÜ EKO 201E](https://econ.itu.edu.tr/egitim/lisans/havuz-dersi-eko201e) dersi için geliştirilmiş yeni nesil bir **Soru Yönetim Sistemi**dir. 
 
 Word (.docx) tabanlı soru bankalarını saniyeler içinde analiz eder, görselleri akıllıca eşleştirir ve modern bir arayüzde interaktif testlere dönüştürür. Bu proje, **modern yazılım geliştirme pratikleri** ve **Vibe Coding** yaklaşımıyla, kullanıcı deneyimi odaklı olarak tasarlanmıştır.
 
