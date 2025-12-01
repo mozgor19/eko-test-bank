@@ -1,296 +1,249 @@
 import streamlit as st
-import mammoth
-from bs4 import BeautifulSoup
-import re
-import random
 import os
+import random
+import time
 from streamlit_pdf_viewer import pdf_viewer
 
-# -----------------------------------------------------------------------------
-# 1. DOCX -> HTML -> SORU AYRIŞTIRMA (GLOBAL HAFIZA MANTIĞI)
-# -----------------------------------------------------------------------------
-def parse_docx_with_images(file_obj, chapter_name):
-    """
-    DOCX dosyasını HTML'e çevirir. 
-    Resimleri global bir hafızada tutar ve 'Refer to' diyen her soruya
-    en son görülen resmi yapıştırır.
-    """
-    # 1. Mammoth ile DOCX'i HTML'e çevir
-    try:
-        result = mammoth.convert_to_html(file_obj)
-        html = result.value
-    except Exception as e:
-        st.error(f"Dosya dönüştürme hatası: {e}")
-        return []
-    
-    # 2. HTML'i BeautifulSoup ile parçala
-    soup = BeautifulSoup(html, "html.parser")
-    
-    questions = []
-    
-    # --- DEĞİŞKENLER ---
-    current_q = None
-    question_active = False 
-    
-    buffer_html = ""        # Şu anki sorunun HTML içeriği
-    
-    # GLOBAL RESİM HAFIZASI (En önemli değişiklik)
-    # Belge boyunca gördüğümüz son resmi burada tutacağız.
-    global_last_image = ""  
-    
-    options = {}
-    answer = None
-    ref = None
-    q_id = None
-
-    # Regexler
-    q_start_pattern = re.compile(r'^(\d+)\.\s+(.*)') 
-    opt_pattern = re.compile(r'^\s*([a-d])[\.\)]\s+(.*)', re.IGNORECASE)
-    ans_pattern = re.compile(r'(?:ANS|Answer):\s+([A-D])', re.IGNORECASE)
-    ref_pattern = re.compile(r'REF:\s+(.*)')
-    
-    # Bu kelimeler geçiyorsa hafızadaki resmi çağıracağız
-    figure_keywords = ["refer to figure", "refer to table"]
-
-    elements = soup.find_all(['p', 'table']) 
-    
-    for elem in elements:
-        text = elem.get_text().strip()
-        raw_html = str(elem) 
-
-        # --- ADIM 1: RESİM GÜNCELLEME ---
-        # Bu element bir resim veya tablo içeriyor mu?
-        # Soru, cevap veya şık fark etmeksizin gördüğümüz an hafızaya alıyoruz.
-        if "<img" in raw_html or "<table" in raw_html:
-            # Cevap şıkkı (a. b. c.) içindeki minik resimleri almamak için basit bir kontrol
-            # Genellikle figürler <p><img...></p> şeklinde gelir ve kısadır.
-            global_last_image = raw_html
-
-        # --- ADIM 2: YENİ SORU BAŞLANGICI ---
-        match_q = q_start_pattern.match(text)
-        if match_q:
-            # Önceki soruyu kaydet
-            if current_q and len(options) >= 2 and answer:
-                questions.append({
-                    'id': q_id, 'chapter': chapter_name, 'body_html': buffer_html, 
-                    'options': options, 'answer': answer.lower(), 'ref': ref
-                })
-
-            # --- YENİ SORU HAZIRLIĞI ---
-            question_active = True
-            current_q = True
-            q_num = match_q.group(1)
-            q_text_content = match_q.group(2) 
-            q_id = f"{chapter_name} - Q{q_num}"
-            
-            # Soru metnini hazırla
-            q_text_html = f"<p><b>{q_text_content}</b></p>"
-            
-            # --- RESİM YAPIŞTIRMA MANTIĞI ---
-            # 1. Bu satırın kendisi zaten resim içeriyor mu? (Nadir ama olur)
-            if "<img" in raw_html:
-                buffer_html = raw_html # Zaten içinde var, direkt al
-            else:
-                # 2. Soru metni "Refer to Figure" gibi bir şey diyor mu?
-                q_text_lower = q_text_content.lower()
-                needs_image = any(kw in q_text_lower for kw in figure_keywords)
-                
-                # Eğer soru resim istiyorsa VE hafızamızda bir resim varsa
-                if needs_image and global_last_image:
-                    # Resmi sorunun tepesine ekle
-                    buffer_html = global_last_image + q_text_html
-                else:
-                    # İstemiyorsa düz metin
-                    buffer_html = q_text_html
-
-            options = {}
-            answer = None
-            ref = None
-            continue
-
-        # --- ADIM 3: CEVAP SATIRI ---
-        match_ans = ans_pattern.search(text)
-        if match_ans:
-            answer = match_ans.group(1)
-            question_active = False 
-            match_ref = ref_pattern.search(text)
-            if match_ref: ref = match_ref.group(1)
-            continue
-        
-        # --- ADIM 4: ŞIKLAR ---
-        if question_active: 
-            match_opt = opt_pattern.match(text)
-            if match_opt:
-                options[match_opt.group(1).lower()] = match_opt.group(2)
-                continue
-
-        # --- ADIM 5: SORUNUN DEVAMI ---
-        if "REF:" not in text and "ANS:" not in text:
-            if question_active: 
-                # Eğer soru metninin devamıysa (veya şıklardan önce gelen açıklamayla) ekle
-                # Ancak son eklediğimiz şey zaten aynı resimse tekrar ekleme (duplicate önleme)
-                if raw_html != global_last_image:
-                    buffer_html += raw_html
-
-    # Döngü bitti, son soruyu ekle
-    if current_q and len(options) >= 2 and answer:
-        questions.append({
-            'id': q_id, 'chapter': chapter_name, 'body_html': buffer_html,
-            'options': options, 'answer': answer.lower(), 'ref': ref
-        })
-
-    return questions
+# Kendi modüllerimiz
+from utils.docx_parser import parse_docx
+from utils.db_manager import init_db, log_mistake, get_mistakes, remove_mistake
 
 # -----------------------------------------------------------------------------
-# 2. PDF GÖSTERME (Aynen Kaldı)
+# AYARLAR VE BAŞLANGIÇ
 # -----------------------------------------------------------------------------
-def display_pdf(file_path):
-    try:
-        pdf_viewer(file_path, height=800)
-    except Exception as e:
-        st.error(f"PDF görüntülenemedi: {e}")
+st.set_page_config(page_title="ekoTestBank", page_icon="🎓", layout="wide")
 
-# -----------------------------------------------------------------------------
-# 3. UYGULAMA ARAYÜZÜ (Aynen Kaldı)
-# -----------------------------------------------------------------------------
+# Veritabanını Başlat
+init_db()
 
-st.set_page_config(page_title="ekoTestBank Pro", layout="wide")
-
+# Yolları Tanımla
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SLIDES_DIR = os.path.join(BASE_DIR, "slides") 
+DATA_DIR = os.path.join(BASE_DIR, "data", "questions")
+SLIDES_DIR = os.path.join(BASE_DIR, "data", "slides")
 
+# CSS ve Mobil Ayarları Yükle
+with open(os.path.join(BASE_DIR, "assets", "style.css")) as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Mobil PWA Meta Etiketleri
 st.markdown("""
-<style>
-    img { max-width: 100%; max-height: 350px; width: auto; display: block; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ddd; cursor: pointer; }
-    .stMarkdown p { font-size: 16px; }
-    iframe { border: 1px solid #eee; border-radius: 5px; }
-</style>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 """, unsafe_allow_html=True)
 
-st.title("🎓 ekoTestBank")
+# Scroll to Top Butonu (JavaScript)
+st.markdown("""
+<button onclick="topFunction()" id="myBtn" title="Başa Dön">⬆️</button>
+<script>
+var mybutton = document.getElementById("myBtn");
+window.onscroll = function() {scrollFunction()};
+function scrollFunction() {
+  if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {
+    mybutton.style.display = "block";
+  } else {
+    mybutton.style.display = "none";
+  }
+}
+function topFunction() {
+  document.body.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+}
+</script>
+""", unsafe_allow_html=True)
 
+# -----------------------------------------------------------------------------
+# SESSION STATE YÖNETİMİ
+# -----------------------------------------------------------------------------
 if 'all_questions' not in st.session_state:
     st.session_state.all_questions = []
 if 'current_quiz' not in st.session_state:
     st.session_state.current_quiz = []
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
 
+# -----------------------------------------------------------------------------
+# FONKSİYONLAR
+# -----------------------------------------------------------------------------
+def load_data():
+    """Tüm chapterları otomatik yükler."""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+        st.error(f"Lütfen soru dosyalarını '{DATA_DIR}' klasörüne atın.")
+        return
+
+    files = [f for f in os.listdir(DATA_DIR) if f.endswith('.docx')]
+    if not files:
+        st.warning(f"'{DATA_DIR}' klasöründe dosya bulunamadı.")
+        return
+
+    all_loaded = []
+    bar = st.sidebar.progress(0)
+    status = st.sidebar.empty()
+    
+    for idx, file_name in enumerate(files):
+        status.text(f"Yükleniyor: {file_name}...")
+        ch_name = file_name.split('.')[0]
+        file_path = os.path.join(DATA_DIR, file_name)
+        qs = parse_docx(file_path, ch_name)
+        all_loaded.extend(qs)
+        bar.progress((idx + 1) / len(files))
+    
+    status.empty()
+    bar.empty()
+    st.session_state.all_questions = all_loaded
+    st.session_state.data_loaded = True
+    st.toast(f"✅ Başarıyla {len(all_loaded)} soru yüklendi!", icon="🎉")
+
+# -----------------------------------------------------------------------------
+# KENAR ÇUBUĞU & NAVİGASYON
+# -----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("📌 Menü")
-    page_selection = st.radio("Git:", ["📝 Quiz Çöz", "📊 Ders Slaytları"])
+    st.title("🎓 ekoTestBank")
+    
+    # Navigasyon
+    menu = st.radio("Menü", ["📝 Quiz Çöz", "❌ Hatalarım", "📊 Ders Slaytları"])
     st.markdown("---")
 
-if page_selection == "📝 Quiz Çöz":
-    with st.sidebar:
-        st.subheader("⚙️ Quiz Ayarları")
+    # Veri Yükleme (Eğer yüklenmemişse)
+    if not st.session_state.data_loaded:
+        load_data() # Otomatik yükle
         
-        if st.button("📂 Soru Dosyalarını Tara (.docx)"):
-            local_files = [f for f in os.listdir(BASE_DIR) if f.endswith('.docx')]
-            if local_files:
-                all_loaded = []
-                bar = st.progress(0)
-                for idx, file_name in enumerate(local_files):
-                    ch_name = file_name.split('.')[0]
-                    file_path = os.path.join(BASE_DIR, file_name)
-                    with open(file_path, "rb") as f:
-                        qs = parse_docx_with_images(f, ch_name)
-                        all_loaded.extend(qs)
-                    bar.progress((idx + 1) / len(local_files))
-                
-                st.session_state.all_questions = all_loaded
-                st.success(f"Tamam! {len(all_loaded)} soru yüklendi.")
-            else:
-                st.warning("Klasörde .docx dosyası yok.")
+    # İstatistik
+    if st.session_state.data_loaded:
+        st.caption(f"📚 Havuzda {len(st.session_state.all_questions)} soru var.")
+        if st.button("🔄 Verileri Yenile"):
+            load_data()
+            st.rerun()
 
-        uploaded_files = st.file_uploader("Veya manuel yükle", type=['docx'], accept_multiple_files=True)
-        if uploaded_files:
-            all_loaded = []
-            for up_file in uploaded_files:
-                ch_name = up_file.name.split('.')[0]
-                qs = parse_docx_with_images(up_file, ch_name)
-                all_loaded.extend(qs)
-            st.session_state.all_questions = all_loaded
-            st.success(f"{len(all_loaded)} soru yüklendi.")
+# -----------------------------------------------------------------------------
+# SAYFA: QUIZ ÇÖZ & HATALARIM
+# -----------------------------------------------------------------------------
+if menu in ["📝 Quiz Çöz", "❌ Hatalarım"]:
+    st.header(menu)
 
-        if st.session_state.all_questions:
-            st.markdown("---")
-            mode = st.radio("Çalışma Modu", ["Chapter Bazlı", "Karma Test"])
-            all_qs = st.session_state.all_questions
-            new_quiz = []
+    if not st.session_state.data_loaded:
+        st.info("Veriler yükleniyor...")
+        st.stop()
+
+    quiz_pool = []
+    
+    # MOD SEÇİMİ
+    if menu == "❌ Hatalarım":
+        mistake_ids = [m[0] for m in get_mistakes()] # DB'den ID'leri al
+        quiz_pool = [q for q in st.session_state.all_questions if q['id'] in mistake_ids]
+        if not quiz_pool:
+            st.success("🎉 Hiç kayıtlı hatanız yok! Harika gidiyorsunuz.")
+            st.stop()
+        st.info(f"Geçmişte hata yaptığınız {len(quiz_pool)} soru listeleniyor.")
+    
+    else: # Quiz Çöz Modu
+        # Filtreleme Seçenekleri
+        with st.expander("🛠️ Quiz Ayarları", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                chapters = sorted(list(set(q['chapter'] for q in st.session_state.all_questions)))
+                selected_chaps = st.multiselect("Chapter Seçimi:", chapters, default=chapters[0] if chapters else None)
+            with col2:
+                q_count = st.number_input("Soru Sayısı:", 5, 200, 20)
+                is_random = st.checkbox("Rastgele Karıştır", value=True)
             
-            if mode == "Chapter Bazlı":
-                chapters = sorted(list(set(q['chapter'] for q in all_qs)))
-                sel_chap = st.selectbox("Chapter Seç:", chapters)
-                new_quiz = [q for q in all_qs if q['chapter'] == sel_chap]
+            if st.button("🚀 Testi Başlat", use_container_width=True):
+                filtered = [q for q in st.session_state.all_questions if q['chapter'] in selected_chaps]
+                if is_random:
+                    quiz_pool = random.sample(filtered, min(q_count, len(filtered)))
+                else:
+                    quiz_pool = filtered[:q_count]
                 
-            else: 
-                chapters = sorted(list(set(q['chapter'] for q in all_qs)))
-                target_chaps = st.multiselect("Dahil Et:", chapters)
-                count = st.number_input("Soru Sayısı:", 5, 200, 20)
-                if st.button("Karma Test Oluştur"):
-                    pool = [q for q in all_qs if q['chapter'] in target_chaps]
-                    if pool:
-                        new_quiz = random.sample(pool, min(count, len(pool)))
-                        st.session_state.current_quiz = new_quiz
-                        st.session_state.user_answers = {} 
-                        st.rerun()
+                st.session_state.current_quiz = quiz_pool
+                st.rerun()
 
-            if mode == "Chapter Bazlı" and new_quiz:
-                 current_ids = [q['id'] for q in st.session_state.current_quiz]
-                 new_ids = [q['id'] for q in new_quiz]
-                 if current_ids != new_ids:
-                     st.session_state.current_quiz = new_quiz
-                     st.session_state.user_answers = {}
-
-    if not st.session_state.current_quiz:
-        st.info("👈 Başlamak için sol menüden soru dosyalarını yükleyin.")
+    # Mevcut Quiz Listesi
+    current_qs = quiz_pool if menu == "❌ Hatalarım" else st.session_state.current_quiz
+    
+    if not current_qs:
+        st.info("👈 Başlamak için ayarlardan seçim yapın ve 'Testi Başlat'a basın.")
     else:
-        st.subheader(f"📝 Soru Çözümü ({len(st.session_state.current_quiz)} Soru)")
+        # Soruya Git Özelliği (Jump)
+        question_ids = [f"{i+1}. {q['id']}" for i, q in enumerate(current_qs)]
+        selected_jump = st.selectbox("🔍 Soruya Git:", question_ids, index=None, placeholder="Soru seçin...")
         
-        for i, q in enumerate(st.session_state.current_quiz):
-            with st.expander(f"Soru {i+1} - {q['id']}", expanded=True):
+        # Seçim yapıldıysa o soruya scroll yapması için anchor link veriyoruz
+        if selected_jump:
+            idx = int(selected_jump.split('.')[0]) - 1
+            st.markdown(f"<a href='#q-{idx}'>Seçilen soruya gitmek için tıkla</a>", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # SORULARI LİSTELE
+        for i, q in enumerate(current_qs):
+            # Anchor noktası (Soruya gitmek için)
+            st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
+            
+            with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
+                # Soru Metni
                 st.markdown(q['body_html'], unsafe_allow_html=True)
                 
+                # Şıklar
                 opts = list(q['options'].keys())
                 fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
-                key = f"ans_{i}_{q['id']}"
-                user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
                 
+                key = f"ans_{menu}_{i}_{q['id']}"
+                user_choice = st.radio("Cevabınız:", fmt_opts, key=key, index=None)
+                
+                # Cevap Kontrolü
                 if user_choice:
                     sel = user_choice.split(')')[0]
                     corr = q['answer']
+                    
                     if sel == corr:
-                        st.success("✅ Doğru")
+                        st.success("✅ Doğru! Tebrikler.")
+                        if menu == "❌ Hatalarım":
+                            remove_mistake(q['id']) # Doğru bilince hatadan sil (opsiyonel)
                     else:
-                        st.error(f"❌ Yanlış. Cevap: {corr.upper()}")
-                    if q.get('ref'):
-                        st.caption(f"Ref: {q['ref']}")
+                        st.error(f"❌ Yanlış. Doğru Cevap: **{corr.upper()}**")
+                        # Hatayı DB'ye kaydet
+                        log_mistake(q['id'], q['chapter'])
+                    
+                    # Detay Bilgiler (Cevaplandıktan sonra görünür)
+                    st.markdown("---")
+                    cols = st.columns(3)
+                    if q.get('ref'): cols[0].caption(f"**Referans:** {q['ref']}")
+                    if q.get('top'): cols[1].caption(f"**Konu:** {q['top']}")
+                    if q.get('msc'): cols[2].caption(f"**Tip:** {q['msc']}")
 
-elif page_selection == "📊 Ders Slaytları":
-    st.subheader("📊 Ders Materyalleri")
+# -----------------------------------------------------------------------------
+# SAYFA: SLAYTLAR
+# -----------------------------------------------------------------------------
+elif menu == "📊 Ders Slaytları":
+    st.header("📊 Ders Materyalleri")
+    
     if not os.path.exists(SLIDES_DIR):
         os.makedirs(SLIDES_DIR)
-        st.warning(f"⚠️ '{SLIDES_DIR}' klasörü oluşturuldu. PDF'leri buraya atın.")
-    
-    pdf_files = [f for f in os.listdir(SLIDES_DIR) if f.lower().endswith('.pdf')]
-    pdf_files.sort()
+        st.warning(f"Lütfen PDF dosyalarını '{SLIDES_DIR}' içine atın.")
+        st.stop()
+        
+    pdf_files = sorted([f for f in os.listdir(SLIDES_DIR) if f.lower().endswith('.pdf')])
     
     if not pdf_files:
-        st.info(f"📂 'slides' klasöründe dosya yok.")
+        st.info("Henüz slayt yüklenmemiş.")
     else:
-        slide_map = {}
-        display_names = []
-        for f in pdf_files:
-            clean = os.path.splitext(f)[0].split('_')[0]
-            d_name = f"{clean} ({f})"
-            slide_map[d_name] = f
-            display_names.append(d_name)
-            
-        with st.sidebar:
-            st.markdown("### 📑 Slayt Seç")
-            sel_name = st.selectbox("Dosya:", display_names)
+        selected_pdf = st.selectbox("Slayt Seç:", pdf_files)
         
-        if sel_name:
-            path = os.path.join(SLIDES_DIR, slide_map[sel_name])
-            st.write(f"**Görüntülenen:** `{slide_map[sel_name]}`")
-            display_pdf(path)
+        pdf_path = os.path.join(SLIDES_DIR, selected_pdf)
+        
+        # İndirme Butonu (User Experience +)
+        with open(pdf_path, "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+            st.download_button(label="📥 Bu Slaytı İndir", 
+                               data=pdf_bytes, 
+                               file_name=selected_pdf, 
+                               mime='application/pdf')
+        
+        # Görüntüleme
+        pdf_viewer(pdf_path, height=800)
 
+# -----------------------------------------------------------------------------
+# ALT BİLGİ & BUTON
+# -----------------------------------------------------------------------------
+st.markdown("---")
+st.markdown('<button class="thank-btn">✨ Teşekkür etmek tamamen ücretsiz ✨</button>', unsafe_allow_html=True)
