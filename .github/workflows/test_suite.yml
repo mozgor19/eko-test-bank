@@ -1,0 +1,38 @@
+name: Güvenlik ve Fonksiyon Testleri
+
+# Ne zaman çalışsın? (Her push işleminde)
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest  # Linux makinede çalıştır
+
+    steps:
+    # 1. GitHub'daki kodlarını sanal makineye çek
+    - uses: actions/checkout@v3
+
+    # 2. Python 3.9 kurulumu yap
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+
+    # 3. Kütüphaneleri yükle (requirements.txt)
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Testleri Çalıştır
+    # Not: Test ortamı için sahte çevre değişkenleri tanımlıyoruz
+    - name: Testleri Çalıştır
+      env:
+        ADMIN_PASSWORD: "TestPassword123"
+        EMAIL_SENDER: "test@domain.com"
+        EMAIL_PASSWORD: "dummy_password"
+      run: |
+        python tests/run_all.py
