@@ -253,6 +253,11 @@ with st.sidebar:
             st.session_state.data_loaded = False
             st.session_state.all_questions = []
             st.rerun()
+    
+    st.write("---")
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+    if st.button("✨ TEŞEKKÜR ET ✨", type="primary", use_container_width=True):
+        feedback_dialog()
 
 # -----------------------------------------------------------------------------
 # 1. QUIZ ÇÖZ
@@ -410,5 +415,6 @@ st.markdown("""
     });
 </script>
 """, unsafe_allow_html=True)
+
 
 
