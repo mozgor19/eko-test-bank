@@ -2,3 +2,4 @@ streamlit
 mammoth
 beautifulsoup4
 streamlit-pdf-viewer
+python-dotenv
