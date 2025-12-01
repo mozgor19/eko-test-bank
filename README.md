@@ -12,7 +12,6 @@ Word (.docx) tabanlı soru bankalarını saniyeler içinde analiz eder, görsell
 
 * Bu uygulama üzerinden herhangi bir **ticari gelir elde edilmemektedir.**
 * Proje, açık kaynak kodlu olup öğrencilerin ders çalışma süreçlerini kolaylaştırmak ve yazılım geliştirme pratiklerini öğrenmek amacıyla geliştirilmiştir.
-* İçerikte kullanılan sorular ve materyaller, kullanıcıların kendi yüklediği dosyalardan oluşur; uygulamanın kendisi telifli içerik barındırmaz.
 ---
 
 ## 🌟 Öne Çıkan Özellikler
