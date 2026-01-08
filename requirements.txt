@@ -3,3 +3,4 @@ mammoth
 beautifulsoup4
 streamlit-pdf-viewer
 python-dotenv
+psycopg2-binary
