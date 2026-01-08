@@ -1,168 +1,206 @@
-import sqlite3
-import os
+import psycopg2
 import hashlib
+import os
 import streamlit as st
-import html
-import random
-import string
+import json
 
-DB_PATH = os.path.join("data", "user_data.db")
+# Veritabanı URL'sini al (.env veya Secrets)
+DATABASE_URL = os.getenv("DATABASE_URL") or (st.secrets["DATABASE_URL"] if "DATABASE_URL" in st.secrets else None)
 
+def get_connection():
+    """PostgreSQL veritabanına güvenli bağlantı açar."""
+    if not DATABASE_URL:
+        st.error("Veritabanı bağlantı adresi (DATABASE_URL) bulunamadı!")
+        return None
+    try:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn
+    except Exception as e:
+        st.error(f"Veritabanı Bağlantı Hatası: {e}")
+        return None
+
+def init_db():
+    """Tabloları oluşturur (Eğer yoksa)."""
+    conn = get_connection()
+    if conn:
+        c = conn.cursor()
+        # Kullanıcılar Tablosu
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                password TEXT,
+                role TEXT
+            )
+        ''')
+        # Hatalar Tablosu
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS mistakes (
+                username TEXT,
+                question_id TEXT,
+                chapter TEXT,
+                mistake_count INTEGER DEFAULT 1,
+                FOREIGN KEY(username) REFERENCES users(username)
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+# --- GÜVENLİK (HASHING) ---
 def make_hash(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_hashes(password, hashed_text):
     if make_hash(password) == hashed_text:
-        return True
+        return hashed_text
     return False
-
-def init_db():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS mistakes
-                 (username TEXT, question_id TEXT, chapter TEXT, error_count INTEGER, 
-                 PRIMARY KEY (username, question_id))''')
-    
-    # ARTIK EMAIL DE VAR
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (username TEXT PRIMARY KEY, email TEXT, password TEXT, role TEXT, reset_code TEXT)''')
-    conn.commit()
-    conn.close()
 
 # --- KULLANICI İŞLEMLERİ ---
 def add_user(username, email, password):
-    clean_user = html.escape(username)
-    clean_email = html.escape(email)
-    
-    if clean_user.lower() == "admin": return "admin_error"
-    if len(password) < 6: return "pass_len_error"
-
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
+    if not conn: return "db_error"
     c = conn.cursor()
-    try:
-        # Email kontrolü (Aynı maille iki kayıt olmasın)
-        c.execute("SELECT * FROM users WHERE email = ?", (clean_email,))
-        if c.fetchone():
-            return "email_exist_error"
-
-        c.execute("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)", 
-                  (clean_user, clean_email, make_hash(password), 'user'))
-        conn.commit()
-        return "success"
-    except sqlite3.IntegrityError:
-        return "user_exist_error"
-    finally:
+    
+    # Şifre Uzunluk Kontrolü
+    if len(password) < 6:
         conn.close()
+        return "pass_len_error"
+
+    # Kullanıcı Adı Var mı?
+    c.execute('SELECT * FROM users WHERE username = %s', (username,))
+    if c.fetchone():
+        conn.close()
+        return "user_exist_error"
+
+    # Email Var mı?
+    c.execute('SELECT * FROM users WHERE email = %s', (email,))
+    if c.fetchone():
+        conn.close()
+        return "email_exist_error"
+
+    # Kayıt
+    hashed_pw = make_hash(password)
+    # İlk kullanıcı 'admin' olsun, diğerleri 'user'
+    c.execute('SELECT count(*) FROM users')
+    count = c.fetchone()[0]
+    role = 'admin' if count == 0 else 'user'
+
+    try:
+        c.execute('INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)', 
+                  (username, email, hashed_pw, role))
+        conn.commit()
+        conn.close()
+        return "success"
+    except Exception as e:
+        conn.close()
+        return str(e)
 
 def login_user(username, password):
-    clean_user = html.escape(username)
-    
-    # Admin Kontrolü
-    if clean_user.lower() == "admin":
-        try:
-            # Hem os.getenv hem st.secrets kontrolü
-            secret = os.getenv("ADMIN_PASSWORD") or st.secrets["ADMIN_PASSWORD"]
-            if password == secret:
-                return "admin"
-        except:
-            pass
-
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
+    if not conn: return None
     c = conn.cursor()
-    c.execute("SELECT password, role FROM users WHERE username = ?", (clean_user,))
+    
+    c.execute('SELECT password, role FROM users WHERE username = %s', (username,))
     data = c.fetchone()
     conn.close()
-    
-    if data and check_hashes(password, data[0]):
-        return data[1] # role
+
+    if data:
+        stored_hash, role = data
+        if check_hashes(password, stored_hash):
+            return role
     return None
 
-# --- ŞİFRE SIFIRLAMA İŞLEMLERİ ---
-def set_reset_code(email):
-    """Kullanıcıya rastgele kod atar ve kodu döndürür"""
-    conn = sqlite3.connect(DB_PATH)
+def get_all_users():
+    conn = get_connection()
+    if not conn: return []
     c = conn.cursor()
-    
-    # Önce mail var mı kontrol et
-    c.execute("SELECT username FROM users WHERE email = ?", (email,))
-    user = c.fetchone()
-    
-    if not user:
-        conn.close()
-        return None # Mail bulunamadı
-    
-    # 6 haneli kod üret
-    code = ''.join(random.choices(string.digits, k=6))
-    
-    c.execute("UPDATE users SET reset_code = ? WHERE email = ?", (code, email))
+    c.execute('SELECT username FROM users')
+    data = c.fetchall()
+    conn.close()
+    return [user[0] for user in data]
+
+def admin_reset_password(username, new_password):
+    conn = get_connection()
+    if not conn: return
+    c = conn.cursor()
+    new_hash = make_hash(new_password)
+    c.execute('UPDATE users SET password = %s WHERE username = %s', (new_hash, username))
     conn.commit()
     conn.close()
-    return code
 
-def verify_reset_code(email, input_code):
-    conn = sqlite3.connect(DB_PATH)
+# --- ŞİFRE SIFIRLAMA ---
+def set_reset_code(email):
+    """Basitçe 6 haneli kod üretir ve geçici olarak hafızada tutar (Redis yoksa)."""
+    # Not: Gerçek prodüksiyonda bu kodları da DB'de tutmak daha iyidir ama şimdilik session state yeterli.
+    import random
+    code = str(random.randint(100000, 999999))
+    
+    # Kullanıcı var mı kontrol et
+    conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT reset_code FROM users WHERE email = ?", (email,))
-    data = c.fetchone()
+    c.execute('SELECT username FROM users WHERE email = %s', (email,))
+    user = c.fetchone()
     conn.close()
     
-    if data and data[0] == input_code:
-        return True
+    if user:
+        # Streamlit session state kullanarak geçici tutuyoruz
+        if 'reset_codes' not in st.session_state: st.session_state.reset_codes = {}
+        st.session_state.reset_codes[email] = code
+        return code
+    return None
+
+def verify_reset_code(email, code):
+    if 'reset_codes' in st.session_state and email in st.session_state.reset_codes:
+        if st.session_state.reset_codes[email] == code:
+            return True
     return False
 
 def reset_password_with_code(email, new_password):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     c = conn.cursor()
-    # Şifreyi güncelle ve kodu sil (tek kullanımlık olsun)
-    c.execute("UPDATE users SET password = ?, reset_code = NULL WHERE email = ?", 
-              (make_hash(new_password), email))
+    
+    new_hash = make_hash(new_password)
+    c.execute('UPDATE users SET password = %s WHERE email = %s', (new_hash, email))
     conn.commit()
     conn.close()
+    
+    # Kodu temizle
+    if 'reset_codes' in st.session_state:
+        del st.session_state.reset_codes[email]
 
-# --- ADMIN FONKSİYONLARI ---
-def get_all_users():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT username, email FROM users")
-    data = c.fetchall()
-    conn.close()
-    return [f"{u[0]} ({u[1]})" for u in data]
-
-def admin_reset_password(username_with_email, new_password):
-    # Gelen format: "Ahmet (ahmet@mail.com)" -> Sadece username'i alalım
-    username = username_with_email.split(" (")[0]
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET password = ? WHERE username = ?", 
-              (make_hash(new_password), username))
-    conn.commit()
-    conn.close()
-
-# --- HATA KAYIT FONKSİYONLARI (AYNI) ---
+# --- HATA ANALİZİ ---
 def log_mistake(username, question_id, chapter):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
+    if not conn: return
     c = conn.cursor()
-    c.execute('''INSERT INTO mistakes (username, question_id, chapter, error_count)
-                 VALUES (?, ?, ?, 1)
-                 ON CONFLICT(username, question_id) 
-                 DO UPDATE SET error_count = error_count + 1''', (username, question_id, chapter))
-    conn.commit()
-    conn.close()
-
-def remove_mistake(username, question_id):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("DELETE FROM mistakes WHERE username = ? AND question_id = ?", (username, question_id))
+    
+    # Hata daha önce yapılmış mı?
+    c.execute('SELECT * FROM mistakes WHERE username = %s AND question_id = %s', (username, question_id))
+    data = c.fetchone()
+    
+    if data:
+        c.execute('UPDATE mistakes SET mistake_count = mistake_count + 1 WHERE username = %s AND question_id = %s', 
+                  (username, question_id))
+    else:
+        c.execute('INSERT INTO mistakes (username, question_id, chapter) VALUES (%s, %s, %s)', 
+                  (username, question_id, chapter))
+    
     conn.commit()
     conn.close()
 
 def get_mistakes(username):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
+    if not conn: return []
     c = conn.cursor()
-    c.execute("SELECT question_id, chapter, error_count FROM mistakes WHERE username = ?", (username,))
+    c.execute('SELECT question_id, chapter, mistake_count FROM mistakes WHERE username = %s', (username,))
     data = c.fetchall()
     conn.close()
     return data
+
+def remove_mistake(username, question_id):
+    conn = get_connection()
+    if not conn: return
+    c = conn.cursor()
+    c.execute('DELETE FROM mistakes WHERE username = %s AND question_id = %s', (username, question_id))
+    conn.commit()
+    conn.close()
