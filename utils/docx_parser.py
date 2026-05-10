@@ -3,6 +3,78 @@ from bs4 import BeautifulSoup
 import re
 from collections import deque
 
+PARSER_CACHE_VERSION = 2
+
+def fallback_visual_html(caption):
+    normalized_caption = caption.strip().lower().replace(" ", "")
+
+    if normalized_caption == "figure4-3":
+        return """
+<svg viewBox="0 0 520 360" role="img" aria-label="Figure 4-3" style="max-width:100%;height:auto;background:white;border-radius:5px">
+  <rect width="520" height="360" fill="white"/>
+  <g stroke="#111" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="70" y1="295" x2="455" y2="295"/>
+    <line x1="70" y1="295" x2="70" y2="45"/>
+    <line x1="115" y1="75" x2="430" y2="285"/>
+    <line x1="170" y1="135" x2="170" y2="295" stroke-dasharray="8 8"/>
+    <line x1="280" y1="205" x2="280" y2="295" stroke-dasharray="8 8"/>
+    <line x1="70" y1="135" x2="170" y2="135" stroke-dasharray="8 8"/>
+    <line x1="70" y1="205" x2="280" y2="205" stroke-dasharray="8 8"/>
+    <path d="M278 205 L172 136" marker-end="url(#arrow43)"/>
+    <path d="M280 294 L172 294" marker-end="url(#arrow43)"/>
+  </g>
+  <defs>
+    <marker id="arrow43" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#111"/>
+    </marker>
+  </defs>
+  <g fill="#111" font-family="Arial, sans-serif" font-size="18">
+    <text x="35" y="50">Price</text>
+    <text x="390" y="330">Quantity</text>
+    <text x="438" y="285">D</text>
+    <text x="42" y="141">P2</text>
+    <text x="42" y="211">P1</text>
+    <text x="160" y="322">Q2</text>
+    <text x="270" y="322">Q1</text>
+  </g>
+</svg>
+"""
+
+    if normalized_caption == "figure7-9":
+        return """
+<svg viewBox="0 0 560 430" role="img" aria-label="Figure 7-9" style="max-width:100%;height:auto;background:white;border-radius:5px">
+  <rect width="560" height="430" fill="white"/>
+  <g stroke="#111" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="75" y1="355" x2="500" y2="355"/>
+    <line x1="75" y1="355" x2="75" y2="45"/>
+    <line x1="80" y1="350" x2="455" y2="65"/>
+    <line x1="80" y1="80" x2="455" y2="350"/>
+    <line x1="80" y1="45" x2="505" y2="300"/>
+    <line x1="75" y1="165" x2="338" y2="165" stroke-dasharray="8 8"/>
+    <line x1="75" y1="218" x2="276" y2="218" stroke-dasharray="8 8"/>
+    <line x1="75" y1="270" x2="190" y2="270" stroke-dasharray="8 8"/>
+    <line x1="190" y1="270" x2="190" y2="355" stroke-dasharray="8 8"/>
+    <line x1="276" y1="218" x2="276" y2="355" stroke-dasharray="8 8"/>
+    <line x1="338" y1="165" x2="338" y2="355" stroke-dasharray="8 8"/>
+  </g>
+  <g fill="#111" font-family="Arial, sans-serif" font-size="17">
+    <text x="38" y="50">Price</text>
+    <text x="430" y="392">Quantity</text>
+    <text x="456" y="66">S</text>
+    <text x="458" y="352">D</text>
+    <text x="506" y="304">D1</text>
+    <text x="38" y="170">$22</text>
+    <text x="38" y="223">$16</text>
+    <text x="46" y="275">$8</text>
+    <text x="181" y="382">40</text>
+    <text x="267" y="382">80</text>
+    <text x="326" y="382">110</text>
+  </g>
+</svg>
+"""
+
+    return ""
+
 def parse_docx(file_path, chapter_name):
     try:
         with open(file_path, "rb") as docx_file:
@@ -46,9 +118,12 @@ def parse_docx(file_path, chapter_name):
 
     def remember_visual(raw_html, text, caption=""):
         searchable_text = f"{caption} {text}".strip().lower()
+        fallback_html = fallback_visual_html(caption)
+        if fallback_html and ("image/x-emf" in raw_html.lower() or "image/wmf" in raw_html.lower()):
+            raw_html = fallback_html
         if "<table" in raw_html:
             visual_history.append({"kind": "table", "html": raw_html, "text": searchable_text})
-        elif "<img" in raw_html:
+        elif "<img" in raw_html or "<svg" in raw_html:
             visual_history.append({"kind": "figure", "html": raw_html, "text": searchable_text})
 
     def matching_visual(question_text):

@@ -2,13 +2,15 @@ import streamlit as st
 import os
 import random
 import time
+import importlib
 from streamlit_pdf_viewer import pdf_viewer
 from dotenv import load_dotenv
 
 # Env yükle
 load_dotenv()
+importlib.invalidate_caches()
 
-from utils.docx_parser import parse_docx
+from utils.docx_parser import PARSER_CACHE_VERSION, parse_docx
 from utils.db_manager import *
 from utils.email_helper import send_reset_code, send_admin_notification
 
@@ -87,7 +89,7 @@ if 'reset_stage' not in st.session_state: st.session_state.reset_stage = 0
 if 'reset_email' not in st.session_state: st.session_state.reset_email = ""
 
 @st.cache_data(show_spinner=False)
-def parse_docx_cached(file_path, chapter_name, modified_ns, file_size):
+def parse_docx_cached(file_path, chapter_name, modified_ns, file_size, parser_version):
     return parse_docx(file_path, chapter_name)
 
 def question_storage_id(question):
@@ -199,7 +201,7 @@ def load_data():
         ch_name = file_name.split('.')[0]
         file_path = os.path.join(DATA_DIR, file_name)
         stat = os.stat(file_path)
-        qs = parse_docx_cached(file_path, ch_name, stat.st_mtime_ns, stat.st_size)
+        qs = parse_docx_cached(file_path, ch_name, stat.st_mtime_ns, stat.st_size, PARSER_CACHE_VERSION)
         all_loaded.extend(qs)
         my_bar.progress((idx + 1) / len(files))
     my_bar.empty()
