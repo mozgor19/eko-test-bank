@@ -67,6 +67,26 @@ st.markdown("""
 <style>
     /* Resimler */
     img { max-width: 100%; max-height: 350px; border-radius: 5px; }
+    .slide-viewer {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        overflow-x: auto;
+    }
+    .slide-viewer img.slide-image {
+        width: min(100%, 1400px) !important;
+        max-width: none !important;
+        height: auto !important;
+        max-height: none !important;
+        object-fit: contain !important;
+        border-radius: 5px;
+    }
+    @media (max-width: 768px) {
+        .slide-viewer img.slide-image {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+    }
     
     /* Soruya Git Butonunun Gideceği Yer için Boşluk (Header'ın altında kalmasın diye) */
     div[id^='q-'] {
@@ -180,11 +200,11 @@ def render_pdf(path, file_name):
             encoded_image = base64.b64encode(page_image).decode("ascii")
             st.markdown(
                 f"""
-                <div style="width:100%; overflow-x:auto;">
+                <div class="slide-viewer">
                     <img
+                        class="slide-image"
                         src="data:image/jpeg;base64,{encoded_image}"
                         alt="{html_lib.escape(file_name)} - Sayfa {selected_page}"
-                        style="display:block; width:100%; max-width:100%; height:auto !important; max-height:none !important; object-fit:contain; border-radius:5px;"
                     />
                 </div>
                 """,
