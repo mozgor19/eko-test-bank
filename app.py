@@ -81,10 +81,42 @@ st.markdown("""<meta name="apple-mobile-web-app-capable" content="yes"><meta nam
 if 'all_questions' not in st.session_state: st.session_state.all_questions = []
 if 'current_quiz' not in st.session_state: st.session_state.current_quiz = []
 if 'data_loaded' not in st.session_state: st.session_state.data_loaded = False
-if 'username' not in st.session_state: st.session_state.username = None 
-if 'role' not in st.session_state: st.session_state.role = None 
-if 'reset_stage' not in st.session_state: st.session_state.reset_stage = 0 
+if 'username' not in st.session_state: st.session_state.username = None
+if 'role' not in st.session_state: st.session_state.role = None
+if 'reset_stage' not in st.session_state: st.session_state.reset_stage = 0
 if 'reset_email' not in st.session_state: st.session_state.reset_email = ""
+
+@st.cache_data(show_spinner=False)
+def parse_docx_cached(file_path, chapter_name, modified_ns, file_size):
+    return parse_docx(file_path, chapter_name)
+
+def question_storage_id(question):
+    return question.get('uid') or question['id']
+
+def mistake_id_for_question(question, mistake_ids):
+    storage_id = question_storage_id(question)
+    if storage_id in mistake_ids:
+        return storage_id
+    return question['id']
+
+def show_answer_feedback(question, user_choice, context, index, save_mistake=False):
+    selected = user_choice.split(')', 1)[0]
+    storage_id = question_storage_id(question)
+    answer_state_key = f"checked_{context}_{index}_{storage_id}"
+    is_new_selection = st.session_state.get(answer_state_key) != selected
+    st.session_state[answer_state_key] = selected
+
+    if selected == question['answer']:
+        st.success("✅ Doğru")
+    else:
+        st.error(f"❌ Yanlış. Cevap: **{question['answer'].upper()}**")
+        if save_mistake and is_new_selection:
+            if st.session_state.username:
+                log_mistake(st.session_state.username, storage_id, question['chapter'])
+            else:
+                st.warning("⚠️ Giriş yapmadınız, hata kaydedilmedi.")
+        elif save_mistake and not st.session_state.username:
+            st.warning("⚠️ Giriş yapmadınız, hata kaydedilmedi.")
 
 # -----------------------------------------------------------------------------
 # DİALOG (POPUP) FONKSİYONLARI
@@ -125,7 +157,7 @@ def load_data():
         os.makedirs(DATA_DIR)
         st.error(f"'{DATA_DIR}' klasörü yok.")
         return
-    files = [f for f in os.listdir(DATA_DIR) if f.endswith('.docx')]
+    files = sorted([f for f in os.listdir(DATA_DIR) if f.endswith('.docx')])
     if not files:
         st.warning("Dosya bulunamadı.")
         return
@@ -133,7 +165,9 @@ def load_data():
     my_bar = st.progress(0, text="Yükleniyor...")
     for idx, file_name in enumerate(files):
         ch_name = file_name.split('.')[0]
-        qs = parse_docx(os.path.join(DATA_DIR, file_name), ch_name)
+        file_path = os.path.join(DATA_DIR, file_name)
+        stat = os.stat(file_path)
+        qs = parse_docx_cached(file_path, ch_name, stat.st_mtime_ns, stat.st_size)
         all_loaded.extend(qs)
         my_bar.progress((idx + 1) / len(files))
     my_bar.empty()
@@ -338,18 +372,11 @@ if menu == "📝 Quiz Çöz":
             
             with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
                 st.markdown(q['body_html'], unsafe_allow_html=True)
-                opts = list(q['options'].keys())
                 fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
-                key = f"ans_quiz_{i}_{q['id']}"
+                key = f"ans_quiz_{i}_{question_storage_id(q)}"
                 user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
                 if user_choice:
-                    sel = user_choice.split(')')[0]
-                    if sel == q['answer']: st.success("✅ Doğru")
-                    else:
-                        st.error(f"❌ Yanlış. Cevap: **{q['answer'].upper()}**")
-                        if st.session_state.username:
-                            log_mistake(st.session_state.username, q['id'], q['chapter'])
-                        else: st.warning("⚠️ Giriş yapmadınız, hata kaydedilmedi.")
+                    show_answer_feedback(q, user_choice, "quiz", i, save_mistake=True)
                     st.divider()
                     c1, c2, c3 = st.columns(3)
                     if q.get('ref'): c1.caption(f"Ref: {q['ref']}")
@@ -369,8 +396,8 @@ elif menu == "❌ Hatalarım":
         st.stop()
 
     mistakes = get_mistakes(st.session_state.username)
-    ids = [m[0] for m in mistakes]
-    quiz_pool = [q for q in st.session_state.all_questions if q['id'] in ids]
+    ids = {m[0] for m in mistakes}
+    quiz_pool = [q for q in st.session_state.all_questions if question_storage_id(q) in ids or q['id'] in ids]
 
     if not quiz_pool: st.success("🎉 Hatanız yok!")
     else:
@@ -378,17 +405,15 @@ elif menu == "❌ Hatalarım":
         for i, q in enumerate(quiz_pool):
             with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
                 st.markdown(q['body_html'], unsafe_allow_html=True)
-                opts = list(q['options'].keys())
                 fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
-                key = f"ans_mistake_{i}_{q['id']}"
+                key = f"ans_mistake_{i}_{question_storage_id(q)}"
                 user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
                 if user_choice:
-                    sel = user_choice.split(')')[0]
-                    if sel == q['answer']: st.success("✅ Doğru")
-                    else: st.error(f"❌ Yanlış. Cevap: **{q['answer'].upper()}**")
-                
-                if st.button("🗑️ Sil", key=f"del_{q['id']}"):
-                    remove_mistake(st.session_state.username, q['id'])
+                    show_answer_feedback(q, user_choice, "mistake", i)
+
+                mistake_id = mistake_id_for_question(q, ids)
+                if st.button("🗑️ Sil", key=f"del_{i}_{question_storage_id(q)}"):
+                    remove_mistake(st.session_state.username, mistake_id)
                     st.toast("Silindi!", icon="🗑️")
                     time.sleep(0.5)
                     st.rerun()
@@ -405,7 +430,7 @@ elif menu == "📊 Ders Slaytları":
         path = os.path.join(SLIDES_DIR, selected_pdf)
         with open(path, "rb") as f:
             st.download_button("📥 İndir", f, file_name=selected_pdf)
-        pdf_viewer(path, height=800)
+        pdf_viewer(path, width="100%", height=800, zoom_level="auto", key=f"slides_{selected_pdf}")
     else: st.info("Dosya yok.")
 
 # -----------------------------------------------------------------------------

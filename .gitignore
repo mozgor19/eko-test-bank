@@ -1,0 +1,16 @@
+.codex
+.codex/
+.agents
+.agents/
+.env
+.env.*
+.streamlit/secrets.toml
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+data/user_data.db
