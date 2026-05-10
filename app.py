@@ -99,6 +99,11 @@ def mistake_id_for_question(question, mistake_ids):
         return storage_id
     return question['id']
 
+def fragment(func):
+    if hasattr(st, "fragment"):
+        return st.fragment(func)
+    return func
+
 def show_answer_feedback(question, user_choice, context, index, save_mistake=False):
     selected = user_choice.split(')', 1)[0]
     storage_id = question_storage_id(question)
@@ -112,11 +117,38 @@ def show_answer_feedback(question, user_choice, context, index, save_mistake=Fal
         st.error(f"❌ Yanlış. Cevap: **{question['answer'].upper()}**")
         if save_mistake and is_new_selection:
             if st.session_state.username:
-                log_mistake(st.session_state.username, storage_id, question['chapter'])
+                log_mistake_async(st.session_state.username, storage_id, question['chapter'])
             else:
                 st.warning("⚠️ Giriş yapmadınız, hata kaydedilmedi.")
         elif save_mistake and not st.session_state.username:
             st.warning("⚠️ Giriş yapmadınız, hata kaydedilmedi.")
+
+@fragment
+def render_question(question, index, context, save_mistake=False, mistake_ids=None):
+    mistake_ids = set(mistake_ids or [])
+    storage_id = question_storage_id(question)
+
+    with st.expander(f"Soru {index+1} ({question['id']})", expanded=True):
+        st.markdown(question['body_html'], unsafe_allow_html=True)
+        fmt_opts = [f"{k}) {v}" for k, v in question['options'].items()]
+        key = f"ans_{context}_{index}_{storage_id}"
+        user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
+        if user_choice:
+            show_answer_feedback(question, user_choice, context, index, save_mistake=save_mistake)
+            if context == "quiz":
+                st.divider()
+                c1, c2, c3 = st.columns(3)
+                if question.get('ref'): c1.caption(f"Ref: {question['ref']}")
+                if question.get('top'): c2.caption(f"Konu: {question['top']}")
+                if question.get('msc'): c3.caption(f"Tip: {question['msc']}")
+
+        if context == "mistake":
+            mistake_id = mistake_id_for_question(question, mistake_ids)
+            if st.button("🗑️ Sil", key=f"del_{index}_{storage_id}"):
+                remove_mistake(st.session_state.username, mistake_id)
+                st.toast("Silindi!", icon="🗑️")
+                time.sleep(0.5)
+                st.rerun()
 
 # -----------------------------------------------------------------------------
 # DİALOG (POPUP) FONKSİYONLARI
@@ -369,19 +401,7 @@ if menu == "📝 Quiz Çöz":
 
         for i, q in enumerate(current_qs):
             st.markdown(f"<div id='q-{i}'></div>", unsafe_allow_html=True)
-            
-            with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
-                st.markdown(q['body_html'], unsafe_allow_html=True)
-                fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
-                key = f"ans_quiz_{i}_{question_storage_id(q)}"
-                user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
-                if user_choice:
-                    show_answer_feedback(q, user_choice, "quiz", i, save_mistake=True)
-                    st.divider()
-                    c1, c2, c3 = st.columns(3)
-                    if q.get('ref'): c1.caption(f"Ref: {q['ref']}")
-                    if q.get('top'): c2.caption(f"Konu: {q['top']}")
-                    if q.get('msc'): c3.caption(f"Tip: {q['msc']}")
+            render_question(q, i, "quiz", save_mistake=True)
 
 # -----------------------------------------------------------------------------
 # 2. HATALARIM
@@ -403,20 +423,7 @@ elif menu == "❌ Hatalarım":
     else:
         st.info(f"{len(quiz_pool)} hatalı soru.")
         for i, q in enumerate(quiz_pool):
-            with st.expander(f"Soru {i+1} ({q['id']})", expanded=True):
-                st.markdown(q['body_html'], unsafe_allow_html=True)
-                fmt_opts = [f"{k}) {v}" for k, v in q['options'].items()]
-                key = f"ans_mistake_{i}_{question_storage_id(q)}"
-                user_choice = st.radio("Cevap:", fmt_opts, key=key, index=None)
-                if user_choice:
-                    show_answer_feedback(q, user_choice, "mistake", i)
-
-                mistake_id = mistake_id_for_question(q, ids)
-                if st.button("🗑️ Sil", key=f"del_{i}_{question_storage_id(q)}"):
-                    remove_mistake(st.session_state.username, mistake_id)
-                    st.toast("Silindi!", icon="🗑️")
-                    time.sleep(0.5)
-                    st.rerun()
+            render_question(q, i, "mistake", mistake_ids=tuple(ids))
 
 # -----------------------------------------------------------------------------
 # 3. SLAYTLAR

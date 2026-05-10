@@ -4,6 +4,8 @@ import hashlib
 import os
 import streamlit as st
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 # Veritabanı URL'sini al (.env veya Secrets)
 def load_database_url():
@@ -16,6 +18,9 @@ def load_database_url():
         return None
 
 DATABASE_URL = load_database_url()
+_ASYNC_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mistake-log")
+_DIRECT_POOL = None
+_DIRECT_POOL_LOCK = Lock()
 
 @st.cache_resource(show_spinner=False)
 def _get_connection_pool(database_url):
@@ -244,6 +249,50 @@ def log_mistake(username, question_id, chapter):
                 INSERT INTO mistakes (username, question_id, chapter)
                 VALUES (%s, %s, %s)
             ''', (username, question_id, chapter))
+
+def _get_direct_pool():
+    global _DIRECT_POOL
+    if not DATABASE_URL:
+        return None
+    with _DIRECT_POOL_LOCK:
+        if _DIRECT_POOL is None:
+            _DIRECT_POOL = pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=3,
+                dsn=DATABASE_URL,
+                sslmode='require',
+                connect_timeout=10
+            )
+        return _DIRECT_POOL
+
+def _log_mistake_direct(username, question_id, chapter):
+    direct_pool = _get_direct_pool()
+    if not direct_pool:
+        return
+
+    conn = direct_pool.getconn()
+    try:
+        with conn.cursor() as c:
+            c.execute('''
+                UPDATE mistakes
+                   SET mistake_count = mistake_count + 1,
+                       chapter = %s
+                 WHERE username = %s AND question_id = %s
+            ''', (chapter, username, question_id))
+
+            if c.rowcount == 0:
+                c.execute('''
+                    INSERT INTO mistakes (username, question_id, chapter)
+                    VALUES (%s, %s, %s)
+                ''', (username, question_id, chapter))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        direct_pool.putconn(conn)
+
+def log_mistake_async(username, question_id, chapter):
+    _ASYNC_EXECUTOR.submit(_log_mistake_direct, username, question_id, chapter)
 
 def get_mistakes(username):
     try:
