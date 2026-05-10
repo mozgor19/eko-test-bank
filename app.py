@@ -3,16 +3,55 @@ import os
 import random
 import time
 import importlib
-from streamlit_pdf_viewer import pdf_viewer
+import sys
+import base64
+import html as html_lib
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 # Env yükle
 load_dotenv()
-importlib.invalidate_caches()
 
-from utils.docx_parser import PARSER_CACHE_VERSION, parse_docx
-from utils.db_manager import *
-from utils.email_helper import send_reset_code, send_admin_notification
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+def import_local_module(module_name, retries=3):
+    last_error = None
+    for _ in range(retries):
+        try:
+            importlib.invalidate_caches()
+            return importlib.import_module(module_name)
+        except (ImportError, KeyError) as exc:
+            last_error = exc
+            root_name = module_name.split(".", 1)[0]
+            for loaded_name in list(sys.modules):
+                if loaded_name == root_name or loaded_name.startswith(f"{root_name}."):
+                    sys.modules.pop(loaded_name, None)
+            time.sleep(0.2)
+    raise last_error
+
+docx_parser = import_local_module("utils.docx_parser")
+db_manager = import_local_module("utils.db_manager")
+email_helper = import_local_module("utils.email_helper")
+
+parse_docx = docx_parser.parse_docx
+PARSER_CACHE_VERSION = getattr(docx_parser, "PARSER_CACHE_VERSION", 1)
+
+init_db = db_manager.init_db
+get_all_users = db_manager.get_all_users
+admin_reset_password = db_manager.admin_reset_password
+login_user = db_manager.login_user
+add_user = db_manager.add_user
+set_reset_code = db_manager.set_reset_code
+verify_reset_code = db_manager.verify_reset_code
+reset_password_with_code = db_manager.reset_password_with_code
+log_mistake_async = db_manager.log_mistake_async
+get_mistakes = db_manager.get_mistakes
+remove_mistake = db_manager.remove_mistake
+
+send_reset_code = email_helper.send_reset_code
+send_admin_notification = email_helper.send_admin_notification
 
 # -----------------------------------------------------------------------------
 # AYARLAR
@@ -21,7 +60,6 @@ st.set_page_config(page_title="ekoTestBank", page_icon="🎓", layout="wide")
 st.markdown("<div id='en-tepe'></div>", unsafe_allow_html=True)
 init_db()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "questions")
 SLIDES_DIR = os.path.join(BASE_DIR, "data", "slides")
 
@@ -91,6 +129,53 @@ if 'reset_email' not in st.session_state: st.session_state.reset_email = ""
 @st.cache_data(show_spinner=False)
 def parse_docx_cached(file_path, chapter_name, modified_ns, file_size, parser_version):
     return parse_docx(file_path, chapter_name)
+
+@st.cache_data(show_spinner=False)
+def pdf_pages_cached(file_path, modified_ns, file_size):
+    try:
+        import fitz
+        document = fitz.open(file_path)
+    except Exception:
+        return []
+
+    pages = []
+    matrix = fitz.Matrix(1.55, 1.55)
+    try:
+        for page in document:
+            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+            pages.append(pixmap.tobytes("jpeg"))
+    except Exception:
+        return []
+    finally:
+        document.close()
+    return pages
+
+@st.cache_data(show_spinner=False)
+def pdf_base64_cached(file_path, modified_ns, file_size):
+    with open(file_path, "rb") as pdf_file:
+        return base64.b64encode(pdf_file.read()).decode("ascii")
+
+def render_pdf(path, file_name):
+    stat = os.stat(path)
+    pages = pdf_pages_cached(path, stat.st_mtime_ns, stat.st_size)
+    if pages:
+        for page_image in pages:
+            st.image(page_image, use_container_width=True)
+        return
+
+    safe_name = html_lib.escape(file_name)
+    pdf_base64 = pdf_base64_cached(path, stat.st_mtime_ns, stat.st_size)
+    components.html(
+        f"""
+        <iframe
+            title="{safe_name}"
+            src="data:application/pdf;base64,{pdf_base64}#toolbar=1&navpanes=0&scrollbar=1&view=FitH"
+            style="width:100%;height:820px;border:0;background:#111;"
+        ></iframe>
+        """,
+        height=830,
+        scrolling=True
+    )
 
 def question_storage_id(question):
     return question.get('uid') or question['id']
@@ -439,7 +524,7 @@ elif menu == "📊 Ders Slaytları":
         path = os.path.join(SLIDES_DIR, selected_pdf)
         with open(path, "rb") as f:
             st.download_button("📥 İndir", f, file_name=selected_pdf)
-        pdf_viewer(path, width="100%", height=800, zoom_level="auto", key=f"slides_{selected_pdf}")
+        render_pdf(path, selected_pdf)
     else: st.info("Dosya yok.")
 
 # -----------------------------------------------------------------------------

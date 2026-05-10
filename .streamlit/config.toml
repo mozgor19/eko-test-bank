@@ -5,6 +5,3 @@ primaryColor = "#FF4B4B"
 [server]
 enableCORS = false
 enableXsrfProtection = false
-
-[layout]
-wideMode = true
