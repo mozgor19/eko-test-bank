@@ -131,24 +131,35 @@ def parse_docx_cached(file_path, chapter_name, modified_ns, file_size, parser_ve
     return parse_docx(file_path, chapter_name)
 
 @st.cache_data(show_spinner=False)
-def pdf_pages_cached(file_path, modified_ns, file_size):
+def pdf_page_count_cached(file_path, modified_ns, file_size):
     try:
         import fitz
         document = fitz.open(file_path)
     except Exception:
-        return []
+        return 0
 
-    pages = []
-    matrix = fitz.Matrix(1.55, 1.55)
     try:
-        for page in document:
-            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-            pages.append(pixmap.tobytes("jpeg"))
-    except Exception:
-        return []
+        return document.page_count
     finally:
         document.close()
-    return pages
+
+@st.cache_data(show_spinner=False)
+def pdf_page_image_cached(file_path, modified_ns, file_size, page_number):
+    try:
+        import fitz
+        document = fitz.open(file_path)
+    except Exception:
+        return b""
+
+    matrix = fitz.Matrix(2.5, 2.5)
+    try:
+        page = document[page_number - 1]
+        pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+        return pixmap.tobytes("jpeg", jpg_quality=95)
+    except Exception:
+        return b""
+    finally:
+        document.close()
 
 @st.cache_data(show_spinner=False)
 def pdf_base64_cached(file_path, modified_ns, file_size):
@@ -157,10 +168,32 @@ def pdf_base64_cached(file_path, modified_ns, file_size):
 
 def render_pdf(path, file_name):
     stat = os.stat(path)
-    pages = pdf_pages_cached(path, stat.st_mtime_ns, stat.st_size)
-    if pages:
-        for page_image in pages:
-            st.image(page_image, use_container_width=True)
+    page_count = pdf_page_count_cached(path, stat.st_mtime_ns, stat.st_size)
+    if page_count:
+        page_key = f"slide_page_{file_name}"
+        if page_key not in st.session_state or st.session_state[page_key] > page_count:
+            st.session_state[page_key] = 1
+
+        selected_page = st.slider("Sayfa", 1, page_count, key=page_key)
+        page_image = pdf_page_image_cached(path, stat.st_mtime_ns, stat.st_size, selected_page)
+        if page_image:
+            encoded_image = base64.b64encode(page_image).decode("ascii")
+            st.markdown(
+                f"""
+                <div style="width:100%; overflow-x:auto;">
+                    <img
+                        src="data:image/jpeg;base64,{encoded_image}"
+                        alt="{html_lib.escape(file_name)} - Sayfa {selected_page}"
+                        style="display:block; width:100%; max-width:100%; height:auto !important; max-height:none !important; object-fit:contain; border-radius:5px;"
+                    />
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.caption(f"{selected_page} / {page_count}")
+            return
+
+        st.warning("Bu slayt sayfası görüntülenemedi. İndirerek açabilirsiniz.")
         return
 
     safe_name = html_lib.escape(file_name)
